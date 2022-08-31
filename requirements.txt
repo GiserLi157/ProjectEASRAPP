@@ -1,0 +1,7 @@
+GDAL==3.4.1
+matplotlib==3.2.2
+numpy==1.21.5
+osgeo==0.0.1
+Pillow==9.2.0
+rasterio==1.2.10
+scipy==1.7.3
