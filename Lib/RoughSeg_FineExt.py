@@ -1,13 +1,15 @@
 from tkinter import ttk, TclError, Scrollbar, Label, Scale, Tk, Entry, Button, filedialog, StringVar, Canvas, \
     messagebox, simpledialog
+from multiprocessing import Pool
 from PIL import Image, ImageTk
-from math import ceil, log
+from math import ceil, log, degrees, atan
 from warnings import catch_warnings, simplefilter
 from rasterio import open as rasterOpen
+from math import sqrt
 from rasterio.windows import Window
 from cv2 import merge, cvtColor, inRange, findContours, drawContours, threshold, COLOR_RGB2HSV, RETR_EXTERNAL, \
-    THRESH_BINARY, CHAIN_APPROX_NONE, dilate, minAreaRect, arcLength, contourArea, fillPoly
-from numpy import array, ones, uint8, mean, std, zeros_like, append, zeros
+    THRESH_BINARY, CHAIN_APPROX_NONE, dilate, minAreaRect, arcLength, contourArea, fillPoly, boxPoints
+from numpy import array, ones, uint8, mean, std, zeros_like, append, zeros, float32
 from osgeo.gdal import Open, GDT_Byte, GDT_UInt16, GDT_CInt16, GDT_Float32, GDT_Float64, SetConfigOption
 from osgeo.gdal import GetDriverByName as gdalGetDriverByName
 from osgeo.osr import SpatialReference
@@ -15,7 +17,6 @@ from osgeo.ogr import UseExceptions, FieldDefn, Geometry, wkbLinearRing, OFTReal
 from osgeo.ogr import GetDriverByName as ogrGetDriverByName
 from os import path as ospath
 from time import time
-
 
 class InputImage:
     def __init__(self, root):
@@ -27,7 +28,7 @@ class InputImage:
         self.root.geometry(size_align)
         self.root.title('Input remote sensing image...')
         # Creates the Label
-        Label(self.root, text="image_path:").place(x=27, y=75)
+        Label(self.root, text="image:").place(x=50, y=75)
         self.e_text = StringVar()
         Entry(self.root, width=20, textvariable=self.e_text).place(x=107, y=75)
 
@@ -70,7 +71,7 @@ class CreateScrollbar(Scrollbar):
 class ImageSegmentation(ttk.Frame):
     """ Display and zoom image """
 
-    def __init__(self, root, path):
+    def __init__(self, root=None, path=None):
         super().__init__()
         """ Initialize the ImageFrame """
         global lower
@@ -195,7 +196,7 @@ class ImageSegmentation(ttk.Frame):
             contours, _ = findContours(thres_mask, RETR_EXTERNAL, CHAIN_APPROX_NONE)
             drawContours(self.pyramid, contours, -1, (255, 0, 0), thickness=1)
             self.pyramid = [Image.fromarray(self.pyramid)]
-        self.var_text.set("Promt: Start creating the image pyramid!")
+        self.var_text.set("Prompt: Start creating the image pyramid!")
         # Create image pyramid
         (w, h), m, j = self.pyramid[-1].size, 512, 0
 
@@ -206,7 +207,7 @@ class ImageSegmentation(ttk.Frame):
             w /= self.reduction  # divide on reduction degree
             h /= self.reduction  # divide on reduction degree
             self.pyramid.append(self.pyramid[-1].resize((int(w + 0.5), int(h + 0.5)), self.interpolation_function))
-        self.var_text.set('Promt: Creating {0}-layer image pyramids successfully!'.format(n))
+        self.var_text.set('Prompt: Creating {0}-layer image pyramids successfully!'.format(n))
         self.canvas.lower(self.container)
         # Sets focus for the canvas in response to keyboard keystroke events
         self.canvas.focus_set()
@@ -427,11 +428,39 @@ class ImageSegmentation(ttk.Frame):
             elif event.keycode in [83, 40, 98]:  # scroll down, keys 's' or 'Down'
                 self.scroll_y('scroll', 1, 'unit', event=event)
 
+def calValue(batch_contours, mask, image):
+    # enclosing rectangle; (w,h) are width and height,respectively;Angle is the rotation angle.
+    all_para = []
+    for i in range(len(batch_contours)):
+        contour = batch_contours[i]
+        rect = minAreaRect(
+            contour)  # Return: output as a tuple ((x,y),(w,h),angle) ;(x,y) is center coordinates  of the smallest
+        area = contourArea(contour)  # Return: the area enclosed by the contour
+        perimeter = arcLength(contour, True)  # Return: the perimeter of the contour
+        w, h = rect[1][0], rect[1][1]
+        if h == 0 or w == 0 or area == 0 or perimeter == 0:
+            pass
+        else:
+            length = max(w, h)
+            width = min(w, h)
+            hratiow = 1000 * length / width  # the aspect ratio of the smallest enclosing rectangle * 1000
+
+            # Create a mask image that contains the contour filled in
+            cimg = zeros_like(mask, uint8)
+            fillPoly(cimg, [contour], 1)
+            # Access the image pixels
+            pts = image[cimg == 1]
+            std_cal = std(pts)
+            std_cal = std_cal * 10  # the spectral Standard Deviation of the object surrounded by the contour * 10
+            mean_cal = mean(pts)
+            mean_cal = mean_cal * 10  # the spectral Mean of the object surrounded by the contour * 10
+            all_para.append([std_cal, hratiow, mean_cal, perimeter, length, width, contour])
+    return all_para
 
 def preprocessing(mask, image, kernel_size=None):
     start = time()
-    _, thresh = threshold(mask, 0, 255, THRESH_BINARY)  # binaryzation
-    if kernel_size != None:  # The expansion method in mathematical morphology is used to expand the segmentation results
+    _, thresh = threshold(mask, 0, 255, THRESH_BINARY)  # binarization
+    if kernel_size is not None:  # The expansion method in mathematical morphology is used to expand the segmentation results
         kernel = ones((kernel_size, kernel_size), uint8)
         dilation = dilate(thresh, kernel, iterations=1)
         contours, _ = findContours(dilation, RETR_EXTERNAL, CHAIN_APPROX_NONE)
@@ -443,60 +472,39 @@ def preprocessing(mask, image, kernel_size=None):
     hwlist = []
     meanlist = []
     perimeterlist = []
-    rotatedRectlist = []
     lengthlist = []
     widthlist = []
-    anglelist = []
     new_contours = []
-    for i in range(len(contours)):
-        contour = contours[i]
-        rect = minAreaRect(
-            contour)  # Return: output as a tuple ((x,y),(w,h),anlge) ;(x,y) is center coordinates  of the smallest
-        # enclosing rectangle; (w,h) are width and height,respectively;Angle is the rotation anlge.
-
-        area = contourArea(contour)  # Return: the area enclosed by the contour
-        perimeter = arcLength(contour, True)  # Return: the perimeter of the contour
-        w, h = rect[1][0], rect[1][1]
-        if h == 0 or w == 0 or area == 0 or perimeter == 0:
-            pass
-        else:
-            length = max(w, h)
-            width = min(w, h)
-            hratiow = 1000 * length / width  # the aspect ratio of the smallest enclosing rectangle * 1000
-
-            theta = rect[2]
-
-            # opencv 4.5
-            if w > h:
-                theta = 180 - theta
+    process = 15
+    p = Pool(process)
+    num = len(contours)
+    count = num // process
+    results = []
+    if count >= process:
+        for i in range(process):
+            if (num -i * count)  >= process:
+                batch_contours = contours[i * count: (i + 1) * count]
             else:
-                theta = 90 - theta
-            '''
-            # Versions prior to opencv 4.5
-            if w > h:
-                theta = 180 - theta
-            else:
-                theta = theta
-            '''
+                batch_contours = contours[i * count: num]
+            r = p.apply_async(calValue, args=(batch_contours, mask, image))
+            results.append(r)
+        p.close()
+        p.join()
 
-            # Create a mask image that contains the contour filled in
-            cimg = zeros_like(mask, uint8)
-            fillPoly(cimg, [contour], 1)
-            # Access the image pixels
-            pts = image[cimg == 1]
-            std_cal = std(pts)
-            std_cal = std_cal * 10  # the spectral Standard Deviation of the object surrounded by the contour * 10
-            mean_cal = mean(pts)
-            mean_cal = mean_cal * 10  # the spectral Mean of the object surrounded by the contour * 10
-            stdlist.append(std_cal)
-            hwlist.append(hratiow)
-            meanlist.append(mean_cal)
-            rotatedRectlist.append(rect)
-            perimeterlist.append(perimeter)
-            lengthlist.append(length)
-            widthlist.append(width)
-            anglelist.append(theta)
-            new_contours.append(contour)
+        for i in results:
+            result = i.get()
+            for r in result:
+                stdlist.append(r[0])
+                hwlist.append(r[1])
+                meanlist.append(r[2])
+                perimeterlist.append(r[3])
+                lengthlist.append(r[4])
+                widthlist.append(r[5])
+                new_contours.append(r[6])
+
+    else:
+        calValue(contours)
+
     end = time()
     root = Tk()
     root.withdraw()  # Realize the main window hide
@@ -504,14 +512,14 @@ def preprocessing(mask, image, kernel_size=None):
     root.destroy()
     root.mainloop()
 
-    return [stdlist, meanlist, hwlist, perimeterlist, new_contours, rotatedRectlist, lengthlist, widthlist, anglelist]
+    return [stdlist, meanlist, hwlist, perimeterlist, new_contours, lengthlist, widthlist]
 
 
 class fine_extract(ttk.Frame):
     """ Display and zoom image """
 
     def __init__(self, root, path, mean_max, hw_max, std_max, peri_max, stdlist, meanlist, hwlist, perimeterlist,
-                 contours, lengthlist, widthlist, anglelist):
+                 contours, lengthlist, widthlist):
         super().__init__()
         """ Initialize the ImageFrame """
         self.root = root
@@ -519,7 +527,7 @@ class fine_extract(ttk.Frame):
         self.change = False
         self.tile_height = 1024
         self.stdlist, self.meanlist, self.hwlist, self.perimeterlist = stdlist, meanlist, hwlist, perimeterlist
-        self.contours, self.lengthlist, self.widthlist, self.anglelist = contours, lengthlist, widthlist, anglelist
+        self.contours, self.lengthlist, self.widthlist = contours, lengthlist, widthlist
         # Decide if this image huge or not
         self.reduction = 2  # reduction degree of image pyramid
         self.huge = False  # huge or not
@@ -647,7 +655,7 @@ class fine_extract(ttk.Frame):
         self.ratio = max(self.imwidth, self.imheight) / self.huge_size if self.huge else 1.0
 
         self.scale = self.imscale * self.ratio  # image pyramide scale
-        self.var_text.set("Promt: Start creating the image pyramid!")
+        self.var_text.set("Prompt: Start creating the image pyramid!")
         (w, h), m, j = self.pyramid[-1].size, 512, 0
 
         n = ceil(log(min(w, h) / m, self.reduction)) + 1  # image pyramid length
@@ -657,7 +665,7 @@ class fine_extract(ttk.Frame):
             w /= self.reduction  # divide on reduction degree
             h /= self.reduction  # divide on reduction degree
             self.pyramid.append(self.pyramid[-1].resize((int(w + 0.5), int(h + 0.5)), self.interpolation_function))
-        self.var_text.set("Promt: Creating {0}-layer image pyramids successfully!".format(n))
+        self.var_text.set("Prompt: Creating {0}-layer image pyramids successfully!".format(n))
         self.std_min.set(180)
         self.std_max.set(std_max)
         self.mean_max.set(mean_max)
@@ -686,8 +694,7 @@ class fine_extract(ttk.Frame):
         self.geotrans, self.proj = gdal_ds.GetGeoTransform(), gdal_ds.GetProjection()
         self.imheight, self.imwidth = ds.height, ds.width
         del gdal_ds, ds
-        self.cnts, self.resolution, self.length, self.width, self.angle = self.new_contours, self.geotrans[
-            1], self.new_lengthlist, self.new_widthlist, self.new_anglelist
+        self.cnts = self.new_contours
         self.root.geometry(size_align)
         self.root.title('Save the result...')
         # Creates the first Label Label
@@ -756,7 +763,7 @@ class fine_extract(ttk.Frame):
             # Create a layer:creating a polyline layer. name==>SHP name
             layer = ds.CreateLayer(name, in_srs, geom_type=wkbLineString)
 
-            if layer == None:
+            if layer is None:
                 messagebox.showerror("Error", "Failed to create the vector layer!\n")
 
             '''Add vector data: property sheet data, vector data coordinates'''
@@ -767,8 +774,8 @@ class fine_extract(ttk.Frame):
             FieldANG = FieldDefn("angle", OFTReal)  # Create a floating property field：angle
             layer.CreateField(FieldANG)
             Defn = layer.GetLayerDefn()  # Get layer definition information
-            features = []
-            for cnt, length, width, angle in zip(self.cnts, self.length, self.width, self.angle):
+
+            for cnt in self.cnts:
                 box = Geometry(wkbLinearRing)
                 for point in cnt:
                     row = point[0, 1]
@@ -776,20 +783,42 @@ class fine_extract(ttk.Frame):
                     geox, geoy = self.pixel2geo(row, col, self.geotrans)
                     box.AddPoint(geox, geoy)  # Place the contour coordinates in a single polygon line ring
                 box.CloseRings()  # Closed loop
+                rect = minAreaRect(cnt)
+                [[x0,y0], [x1,y1], [x2,y2], [x3,y3]] = boxPoints(rect)
+                geox0, geoy0 = self.pixel2geo(y0, x0, self.geotrans)
+                geox1, geoy1 = self.pixel2geo(y1, x1, self.geotrans)
+                geox2, geoy2 = self.pixel2geo(y2, x2, self.geotrans)
+                w = sqrt((geox0 - geox1) ** 2 + (geoy0 - geoy1) ** 2)
+                h = sqrt((geox2 - geox1) ** 2 + (geoy2 - geoy1) ** 2)
+                if w > h:
+                    length = w
+                    width = h
+                    if geox0 == geox1:
+                        angle = 90
+                    else:
+                        k = (geoy0 - geoy1) / (geox0 - geox1)
+                        angle = degrees(atan(k))
+                        if angle < 0:
+                            angle = 180 + angle
+                else:
+                    length = h
+                    width = w
+                    if geox2 == geox1:
+                        angle = 90
+                    else:
+                        k = (geoy2 - geoy1) / (geox2 - geox1)
+                        angle = degrees(atan(k))
+                        if angle < 0:
+                            angle = 180 + angle
 
                 feature = Feature(Defn)
-                length = length * self.resolution
                 feature.SetField(0, length)
-                width = width * self.resolution
                 feature.SetField(1, width)
                 feature.SetField(2, angle)
                 feature.SetGeometry(box)
-                features.append(feature)  # Add all features to the list
-
-            for feature in features:
                 layer.CreateFeature(feature)
+                del feature
             ds.Destroy()
-            del feature
 
             root = Tk()
             root.withdraw()
@@ -816,7 +845,7 @@ class fine_extract(ttk.Frame):
         self.save_fineExt()
 
     def change_img(self, event):
-        self.new_contours, self.new_lengthlist, self.new_widthlist, self.new_anglelist = [], [], [], []
+        self.new_contours, self.new_lengthlist, self.new_widthlist = [], [], []
         self.change = True
         self.var_text.set("Prompt: The threshold value has changed!")
         self.val_std_min = self.std_min.get()
@@ -853,11 +882,10 @@ class fine_extract(ttk.Frame):
                     and (self.perimeterlist[j] >= self.val_peri_min) and (self.perimeterlist[j] <= self.val_peri_max)):
                 self.contours[j] = append(self.contours[j], [list((self.contours[j])[0])], axis=0)
                 self.canvas.create_line(list((self.contours[j].flatten())), fill='red', activefill='gray75',
-                                        tag=('del'))
+                                        tag=('del',))
                 self.new_contours.append(self.contours[j])
                 self.new_lengthlist.append(self.lengthlist[j])
                 self.new_widthlist.append(self.widthlist[j])
-                self.new_anglelist.append(self.anglelist[j])
 
         self.new_contours = self.new_contours[:]
         self.show()
@@ -1111,12 +1139,12 @@ class otherFunction:
             for i in range(im_bands):
                 band = ds.GetRasterBand(i + 1)
                 band.WriteArray(img[:, :, i])
-                if nodata != None:
+                if nodata is not None:
                     band.SetNoDataValue(nodata)  # Nodata value is optional
         else:
             band = ds.GetRasterBand(1)
             band.WriteArray(img)
-            if nodata != None:
+            if nodata is not None:
                 band.SetNoDataValue(nodata)  # Nodata value is optional
 
         del gTiffDriver
@@ -1145,7 +1173,7 @@ class funcModule:
         Button(self.root, text="fineExt", height=1, width=14, command=self.fineExt, activebackground="pink",
                activeforeground="blue").place(
             x=22, y=90)
-        Button(self.root, text="roughSeg_fineExt", height=1, width=14, command=self.roughSeg_fineExt,
+        Button(self.root, text="colorSeg_fineExt", height=1, width=14, command=self.colorSeg_fineExt,
                activebackground="pink",
                activeforeground="blue").place(x=22, y=140)
         self.root.mainloop()
@@ -1158,7 +1186,7 @@ class funcModule:
         self.root.destroy()
         self.imageAndmask()
 
-    def roughSeg_fineExt(self):
+    def colorSeg_fineExt(self):
         self.root.destroy()
         self.flag.append(2)
 
@@ -1171,9 +1199,9 @@ class funcModule:
         self.root.geometry(size_align)
         self.root.title('Select the image and corresponding mask...')
         # Creates the first Label Label
-        Label(self.root, text="image_path").place(x=100, y=100)
+        Label(self.root, text="image:").place(x=123, y=100)
         # Creates the second Label Label
-        Label(self.root, text="mask_path").place(x=100, y=200)
+        Label(self.root, text="mask:").place(x=123, y=200)
         self.e1_text = StringVar()
         self.e2_text = StringVar()
         Entry(self.root, width=20, textvariable=self.e1_text).place(x=180, y=100)
@@ -1215,7 +1243,7 @@ if __name__ == "__main__":
         app = InputImage(root)
         root.mainloop()
 
-        if path == None:
+        if path is None:
             root = Tk()
             root.withdraw()  # Realize the main window hide
             messagebox.showerror("Error",
@@ -1331,12 +1359,12 @@ if __name__ == "__main__":
                 size = '2'
                 size = oF.kernel_size()
                 # Some non-extracted ground objects were initially deleted and characteristic parameters were extracted
-                [stdlist, meanlist, hwlist, perimeterlist, contours, rotatedRectlist, lengthlist, widthlist,
-                 anglelist] = preprocessing(mask, new_image, int(size))
+                [stdlist, meanlist, hwlist, perimeterlist, contours, lengthlist, widthlist] = \
+                    preprocessing(mask, new_image, int(size))
             else:
-                [stdlist, meanlist, hwlist, perimeterlist, contours, rotatedRectlist, lengthlist, widthlist,
-                 anglelist] = preprocessing(mask, new_image)
-
+                [stdlist, meanlist, hwlist, perimeterlist, contours, lengthlist, widthlist] = \
+                    preprocessing(mask, new_image)
+            # print(stdlist, meanlist, hwlist, perimeterlist, contours, lengthlist, widthlist)
             hw_max = int(max(hwlist)) + 1
             std_max = int(max(stdlist)) + 1
             mean_max = int(max(meanlist)) + 1
@@ -1354,7 +1382,7 @@ if __name__ == "__main__":
             mainWindow.state('zoomed')
             mainWindow.title('Zoom and Fine-Extraction')
             frame = fine_extract(mainWindow, path, mean_max, hw_max, std_max, peri_max, stdlist, meanlist, hwlist,
-                                 perimeterlist, contours, lengthlist, widthlist, anglelist)
+                                 perimeterlist, contours, lengthlist, widthlist)
             mainWindow.columnconfigure(0, weight=1)
             mainWindow.rowconfigure(0, weight=1)
             mainWindow.mainloop()
@@ -1385,11 +1413,12 @@ if __name__ == "__main__":
                 oF = otherFunction()
                 size = oF.kernel_size()
                 # Some non-extracted ground objects were initially deleted and characteristic parameters were extracted
-                [stdlist, meanlist, hwlist, perimeterlist, contours, rotatedRectlist, lengthlist, widthlist,
-                 anglelist] = preprocessing(mask, new_image, int(size))
+                [stdlist, meanlist, hwlist, perimeterlist, contours, lengthlist, widthlist] = \
+                    preprocessing(mask, new_image, int(size))
             else:
-                [stdlist, meanlist, hwlist, perimeterlist, contours, rotatedRectlist, lengthlist, widthlist,
-                 anglelist] = preprocessing(mask, new_image)
+                [stdlist, meanlist, hwlist, perimeterlist, contours, lengthlist, widthlist] = \
+                    preprocessing(mask, new_image)
+
             hw_max = int(max(hwlist)) + 1
             std_max = int(max(stdlist)) + 1
             mean_max = int(max(meanlist)) + 1
@@ -1407,7 +1436,7 @@ if __name__ == "__main__":
             mainWindow.state('zoomed')
             mainWindow.title('Zoom and Fine-Extraction')
             frame = fine_extract(mainWindow, imgPath, mean_max, hw_max, std_max, peri_max, stdlist, meanlist, hwlist,
-                                 perimeterlist, contours, lengthlist, widthlist, anglelist)
+                                 perimeterlist, contours, lengthlist, widthlist)
             mainWindow.columnconfigure(0, weight=1)
             mainWindow.rowconfigure(0, weight=1)
             mainWindow.mainloop()

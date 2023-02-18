@@ -1,16 +1,13 @@
 # -*- coding: utf-8 -*-
-# Input Image
-import time
 from math import ceil, log
 from warnings import catch_warnings, simplefilter
-from tkinter import ttk, filedialog, StringVar, Label, Entry, Button, Canvas, Scrollbar, TclError, Tk, Label, messagebox
+from tkinter import ttk, filedialog, StringVar, Entry, Button, Canvas, Scrollbar, TclError, Tk, Label, messagebox
 from PIL import Image, ImageTk
 from osgeo.gdal import Open, GDT_Byte, GDT_UInt16, GDT_CInt16, GDT_Float32, GDT_Float64, GetDriverByName
 from cv2 import merge, fillPoly
 from numpy import array, zeros, uint8
 from rasterio import open as rasterOpen
 from rasterio.windows import Window
-import threading
 
 
 class InputImage:
@@ -18,20 +15,20 @@ class InputImage:
         width = 300
         height = 200
         size_align = '%dx%d+%d+%d' % (
-        width, height, (root.winfo_screenwidth() - width) / 2, (root.winfo_screenheight() - height) / 2)
+            width, height, (root.winfo_screenwidth() - width) / 2, (root.winfo_screenheight() - height) / 2)
         self.root = root
         self.root.geometry(size_align)
         self.root.title('Input remote sensing image...')
         # Creates the Label
-        Label(self.root, text="image_path:").place(x = 27, y = 75)
+        Label(self.root, text="image_path:").place(x=27, y=75)
         self.e_text = StringVar()
-        Entry(self.root, width = 20, textvariable = self.e_text).place(x = 107, y = 75)
+        Entry(self.root, width=20, textvariable=self.e_text).place(x=107, y=75)
 
-        Button(self.root, text = "...", command = self.select_image_path).place(x = 257, y = 71)
-        Button(self.root, text = "Ok", command = self.output, activebackground = "pink", activeforeground = "blue").place(x = 40,
-                                                                                                                  y = 150)
-        Button(self.root, text = "Cancel", command = self.root.destroy, activebackground = "pink",
-               activeforeground = "blue").place(x = 230, y = 150)
+        Button(self.root, text="...", command=self.select_image_path).place(x=257, y=71)
+        Button(self.root, text="Ok", command=self.output, activebackground="pink", activeforeground="blue").place(x=40,
+                                                                                                                  y=150)
+        Button(self.root, text="Cancel", command=self.root.destroy, activebackground="pink",
+               activeforeground="blue").place(x=230, y=150)
 
     def select_image_path(self):
         image_path = filedialog.askopenfilename(title='Select the remote sensing image...', initialdir=None,
@@ -64,7 +61,7 @@ class CreateScrollbar(Scrollbar):
 
 
 # custom_Clip function
-class custom_Clip(ttk.Frame):
+class CustomCrop(ttk.Frame):
     """ Display and zoom image """
 
     def __init__(self, root, path):
@@ -87,17 +84,17 @@ class custom_Clip(ttk.Frame):
         self.delta = 1.1  # zoom magnitude
         self.previous_state = 0  # Initialize the keyboard state
         self.interpolation_function = Image.ANTIALIAS  # could be: NEAREST, BILINEAR, BICUBIC and ANTIALIAS
-        self.grid(row=0, column = 0, sticky = 'nswe')
-        self.grid_rowconfigure(0, weight = 1)
-        self.grid_columnconfigure(0, weight = 1)
+        self.grid(row=0, column=0, sticky='nswe')
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
         # Vertical and horizontal scrollbars for canvas
-        hbar = CreateScrollbar(self, orient = 'horizontal')
-        vbar = CreateScrollbar(self, orient = 'vertical')
-        hbar.grid(row=1, column=0, sticky = 'we')
-        vbar.grid(row=0, column=1, sticky = 'ns')
+        hbar = CreateScrollbar(self, orient='horizontal')
+        vbar = CreateScrollbar(self, orient='vertical')
+        hbar.grid(row=1, column=0, sticky='we')
+        vbar.grid(row=0, column=1, sticky='ns')
         # Create a message prompt label
         self.var_text = StringVar()
-        Label(self.root, textvariable = self.var_text, fg = 'green', font = ("黑体", 30)).grid(row = 2, sticky = 'w')
+        Label(self.root, textvariable=self.var_text, fg='green', font=("黑体", 30)).grid(row=2, sticky='w')
 
         # Create canvas and bind it with scrollbars. Public for outer classes
         self.canvas = Canvas(self, highlightthickness=0,
@@ -111,14 +108,14 @@ class custom_Clip(ttk.Frame):
             self.imheight, self.imwidth = ds.height, ds.width
 
         # Put image into container rectangle and use it to set proper coordinates to the image
-        self.container = self.canvas.create_rectangle((0, 0, self.imwidth, self.imheight), width = 0)
+        self.container = self.canvas.create_rectangle((0, 0, self.imwidth, self.imheight), width=0)
 
         self.canvas.grid(row=0, column=0, sticky='nswe')
 
         self.update()
 
-        hbar.configure(command = self.scroll_x)  # bind scrollbars to the canvas
-        vbar.configure(command = self.scroll_y)
+        hbar.configure(command=self.scroll_x)  # bind scrollbars to the canvas
+        vbar.configure(command=self.scroll_y)
         # Bind events to the Canvas
         self.canvas.bind('<Configure>', lambda event: self.show())  # canvas is resized
         self.canvas.bind('<ButtonPress-2>', self.move_start)  # remember canvas position
@@ -126,7 +123,7 @@ class custom_Clip(ttk.Frame):
         self.canvas.bind('<MouseWheel>', self.zoom)  # zoom image
         self.canvas.bind("<ButtonPress-1>", self.left_click)
         self.canvas.bind("<ButtonRelease-1>", self.left_release)
-        self.canvas.bind("<ButtonPress-3>", self.right_click)
+        self.canvas.bind("<Control-s>", self.save)
         self.canvas.bind("<Control-z>", self.undo)
         self.canvas.bind('<KeyPress-q>', self.quit)
 
@@ -140,21 +137,24 @@ class custom_Clip(ttk.Frame):
         self.minlength = min(self.imwidth, self.imheight)  # get the fixed_size image side
 
         # Store images in fixed memory
-        messagebox.showinfo("Promt", "please wait a moment for creating the image pyramids!")
+        messagebox.showinfo("Prompt", "please wait a moment for creating the image pyramids!")
         if self.huge:
             self.pyramid = [self.fixed_size()]
         else:
             img = ds.read()
-            r = img[0]
-            g = img[1]
-            b = img[2]
-            img = merge([r, g, b])
+            if img.shape[0] != 1:
+                r = img[0]
+                g = img[1]
+                b = img[2]
+                img = merge([r, g, b])
+            else:
+                img = img[0]
             self.pyramid = [Image.fromarray(img)]
 
         # Create image pyramid
         # Set ratio coefficient for image pyramid
         self.ratio = max(self.imwidth, self.imheight) / self.huge_size if self.huge else 1.0
-        self.var_text.set("Promt: Start creating the image pyramid!")
+        self.var_text.set("Prompt: Start creating the image pyramid!")
         self.scale = self.imscale * self.ratio  # image pyramide scale
 
         (w, h), m, j = self.pyramid[-1].size, 512, 0
@@ -199,22 +199,22 @@ class custom_Clip(ttk.Frame):
         # Create output TIF file
         gTiffDriver = GetDriverByName("GTiff")
         ds = gTiffDriver.Create(path, im_width, im_height, im_bands, dtype, options=["COMPRESS=LZW", "BIGTIFF=YES"])
-        if (ds != None):
+        if ds is not None:
             ds.SetGeoTransform(im_geotrans)  # Writes affine transformation parameters for the image
             ds.SetProjection(im_proj)  # Write the projection for the image
             if im_bands != 1:
                 for i in range(im_bands):
                     band = ds.GetRasterBand(i + 1)
                     band.WriteArray(img[:, :, i])
-                    if nodata != None:
+                    if nodata is not None:
                         band.SetNoDataValue(nodata)  # Nodata value is optional
             else:
                 band = ds.GetRasterBand(1)
                 band.WriteArray(img)
-                if nodata != None:
+                if nodata is not None:
                     band.SetNoDataValue(nodata)  # Nodata value is optional
         else:
-            self.var_text.set('Promt: Failed to create dataset when exporting tif image')
+            self.var_text.set('Prompt: Failed to create dataset when exporting tif image')
         del gTiffDriver
         del ds
 
@@ -255,8 +255,8 @@ class custom_Clip(ttk.Frame):
                 if allid:
                     for singleid in allid:
                         self.canvas.delete(singleid)
-                self.id_pts = self.canvas.create_oval(self.pts[0], self.pts[1], self.pts[0], self.pts[1], outline = 'red',
-                                                      fill = 'red')
+                self.id_pts = self.canvas.create_oval(self.pts[0], self.pts[1], self.pts[0], self.pts[1], outline='red',
+                                                      fill='red')
             else:
                 # advoid deleting the range indicating container and the background image
                 allid = list(self.canvas.find('all'))
@@ -265,20 +265,20 @@ class custom_Clip(ttk.Frame):
                 if allid:
                     for singleid in allid:
                         self.canvas.delete(singleid)
-                self.id_pts = self.canvas.create_line(self.pts, fill = 'red')
+                self.id_pts = self.canvas.create_line(self.pts, fill='red')
 
-    def right_click(self, event):
+    def save(self, event):
         box_image = self.canvas.coords(self.container)  # get image area
         reference_startx = box_image[0]
         reference_starty = box_image[1]
         if len(self.pts) <= 4:
             self.var_text.set(
-                "Promt: You selected less than two points on the image, so it couldn't customly crop the image!")
+                "Prompt: You selected less than two points on the image, so it couldn't customly crop the image!")
         else:
-            self.var_text.set("\nPromt: Select the file output path...")
-            outpath = filedialog.asksaveasfilename(title = 'Select the output path...', initialdir = None, filetypes = [(
-                "image", ".tif"), ('All Files', ' *')], defaultextension = '.tif')
-            self.var_text.set("Promt: Clipping is under way!")
+            self.var_text.set("\nPrompt: Select the file output path...")
+            outpath = filedialog.asksaveasfilename(title='Select the output path...', initialdir=None, filetypes=[(
+                "image", ".tif"), ('All Files', ' *')], defaultextension='.tif')
+            self.var_text.set("Prompt: Clipping is under way!")
             # delete the line on the canvas
             allid = list(self.canvas.find('all'))
             # advoid deleting the reference extent container and the background image
@@ -313,25 +313,36 @@ class custom_Clip(ttk.Frame):
             ds = rasterOpen(self.path)
             img = ds.read(window=Window(X_min, Y_min, X_max - X_min + 1, Y_max - Y_min + 1))
             del ds
-            r = img[0]
-            g = img[1]
-            b = img[2]
-            img = merge([r, g, b])
-            img_new = Image.fromarray(img)  # acquire image 
+            if img.shape[0] != 1:
+                r = img[0]
+                g = img[1]
+                b = img[2]
+                img = merge([r, g, b])
+                img_new = Image.fromarray(img)  # acquire image
+                # The ROI mask for the delineation
+                mask = zeros((img_new.size[1], img_new.size[0], 3), uint8)
+                for x, y in zip(X, Y):
+                    new_points.append([x - X_min, y - Y_min])
+                mask = fillPoly(mask, [array(new_points)], (255, 255, 255))
+                output = array(img_new)
+                output[mask != 255] = 0
+            else:
+                img = img[0]
+                img_new = Image.fromarray(img)  # acquire image
+                # The ROI mask for the delineation
+                mask = zeros((img_new.size[1], img_new.size[0]), uint8)
+                for x, y in zip(X, Y):
+                    new_points.append([x - X_min, y - Y_min])
+                mask = fillPoly(mask, [array(new_points)], 255)
+                output = array(img_new)
+                output[mask != 255] = 0
             del img
-            # The ROI mask for the delineation
-            mask = zeros((img_new.size[1], img_new.size[0], 3), uint8)
-            for x, y in zip(X, Y):
-                new_points.append([x - X_min, y - Y_min])
-            mask = fillPoly(mask, [array(new_points)], (255, 255, 255))
-            output = array(img_new)
-            output[mask != 255] = 0
             new_proj = self.proj
             try:
-                self.writeTif(outpath, output, new_geoT, new_proj, 0)
+                self.writeTif(outpath, output, new_geoT, new_proj)
             except Exception as e:
-                self.var_text.set("Error: " + e)
-        self.var_text.set("Promt: Clipping is done!")
+                self.var_text.set("Error: " + str(e))
+        self.var_text.set("Prompt: Clipping is done!")
 
     def quit(self, event):
         self.root.destroy()
@@ -362,11 +373,14 @@ class custom_Clip(ttk.Frame):
             ds = rasterOpen(self.path)
             img = ds.read(window=Window(0, i, self.imwidth, band))
             del ds
-            r = img[0]
-            g = img[1]
-            b = img[2]
-            img = merge([r, g, b])
-            rawimage = Image.fromarray(img)  # acquire image 
+            if img.shape[0] != 1:
+                r = img[0]
+                g = img[1]
+                b = img[2]
+                img = merge([r, g, b])
+            else:
+                img = img[0]
+            rawimage = Image.fromarray(img)  # acquire image
             del img
             image.paste(rawimage.resize((w, int(band * k) + 1), self.interpolation_function), (0, int(i * k)))
             i += band
@@ -410,10 +424,13 @@ class custom_Clip(ttk.Frame):
             img = ds.read(window=Window(int(x1 / self.imscale + 0.5), int(y1 / self.imscale + 0.5),
                                         int(w + 0.5), int(h + 0.5)))
             del ds
-            r = img[0]
-            g = img[1]
-            b = img[2]
-            img = merge([r, g, b])
+            if img.shape[0] != 1:
+                r = img[0]
+                g = img[1]
+                b = img[2]
+                img = merge([r, g, b])
+            else:
+                img = img[0]
             image = Image.fromarray(img)  # acquire image
             del img
         else:
@@ -462,7 +479,7 @@ class custom_Clip(ttk.Frame):
         # Respond to Windows (event.delta) wheel event
         if event.delta < 0:  # scroll down, zoom out, smaller
             if round(
-                self.minlength * self.imscale) < 30: return  # The minimum side length of the image is less than 30 pixels
+                    self.minlength * self.imscale) < 30: return  # The minimum side length of the image is less than 30 pixels
             self.imscale /= self.delta
             scale /= self.delta
         if event.delta > 0:  # scroll up, zoom in, bigger
@@ -509,7 +526,7 @@ if __name__ == "__main__":
     root = Tk()  # Create an instance of tkinter.Tk
     app = InputImage(root)
     root.mainloop()
-    if path == None:
+    if path is None:
         root = Tk()
         root.withdraw()  # Realize the main window hide
         messagebox.showerror("Error",
@@ -519,8 +536,8 @@ if __name__ == "__main__":
     else:
         mainWindow = Tk()
         mainWindow.state('zoomed')
-        mainWindow.title('Zoom and clipping')
-        frame = custom_Clip(mainWindow, path)
+        mainWindow.title('Zoom and Crop')
+        frame = CustomCrop(mainWindow, path)
         mainWindow.columnconfigure(0, weight=1)
         mainWindow.rowconfigure(0, weight=1)
         mainWindow.mainloop()

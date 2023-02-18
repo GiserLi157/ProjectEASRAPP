@@ -17,32 +17,32 @@ class SlidingCrop:
         self.root.geometry(size_align)
         self.root.title('Crop multiple large images into multiple regular shaped small images...')
         # Creates the first Label
-        Label(self.root, text = "bigImg_paths").place(x = 96, y = 100)
+        Label(self.root, text="bigImg_paths").place(x=96, y=100)
         # Creates the second Label
-        Label(self.root, text = "folder_path").place(x = 100, y = 200)
+        Label(self.root, text="folder_path").place(x=100, y=200)
         # Creates the third Label
-        Label(self.root, text = "crop_width").place(x = 100, y = 300)
+        Label(self.root, text="crop_width").place(x=100, y=300)
         # Creates the fouth Label
-        Label(self.root, text = "crop_height").place(x = 227, y = 300)
+        Label(self.root, text="crop_height").place(x=227, y=300)
         # Creates the fifth Label
-        Label(self.root, text = "crop_repetitionRate").place(x = 80, y = 400)
+        Label(self.root, text="crop_repetitionRate").place(x=80, y=400)
 
         self.e1_text = StringVar()
         self.e2_text = StringVar()
         self.e3_num = IntVar()
-        Entry(self.root, width = 20, textvariable = self.e1_text).place(x = 180, y = 100)
-        Entry(self.root, width = 20, textvariable = self.e2_text).place(x = 180, y = 200)
+        Entry(self.root, width=20, textvariable=self.e1_text).place(x=180, y=100)
+        Entry(self.root, width=20, textvariable=self.e2_text).place(x=180, y=200)
         # Define drop-down list: Combobox
-        self.crop_width = Combobox(self.root, font = ('宋体', 10), width = 5)
-        self.crop_height = Combobox(self.root, font = ('宋体', 10), width = 5)
-        self.crop_repetitionRate = Combobox(self.root, font = ('宋体', 10), width = 5)
-        Checkbutton(self.root, text = "Create datasets?", variable = self.e3_num, \
-                    onvalue = 1, offvalue = 0,\
-                    width = 13).place(x = 275, y = 396)
+        self.crop_width = Combobox(self.root, font=('宋体', 10), width=5)
+        self.crop_height = Combobox(self.root, font=('宋体', 10), width=5)
+        self.crop_repetitionRate = Combobox(self.root, font=('宋体', 10), width=5)
+        Checkbutton(self.root, text="Create datasets?", variable=self.e3_num, \
+                    onvalue=1, offvalue=0, \
+                    width=13).place(x=275, y=396)
         # Placing drop-down list box controls
-        self.crop_width.place(x = 167, y = 300)
-        self.crop_height.place(x = 300, y = 300)
-        self.crop_repetitionRate.place(x = 200, y = 400)
+        self.crop_width.place(x=167, y=300)
+        self.crop_height.place(x=300, y=300)
+        self.crop_repetitionRate.place(x=200, y=400)
         # Set value list of combobox
         self.crop_width['values'] = ["128", "256", "512", "1024"]
         self.crop_height['values'] = ["128", "256", "512", "1024"]
@@ -52,12 +52,12 @@ class SlidingCrop:
         self.crop_height.set("128")
         self.crop_repetitionRate.set("0")
 
-        Button(self.root, text = "...", command = self.select_bigImg_paths).place(x = 330, y = 96)
-        Button(self.root, text = "...", command = self.select_save_folder).place(x = 330, y = 196)
-        Button(self.root, text = "Crop", command = self.getpath, activebackground = "pink",
-               activeforeground = "blue").place(x = 145, y = 500)
-        Button(self.root, text = "Cancel", command = self.root.destroy, activebackground = "pink",
-               activeforeground = "blue").place(x = 290, y = 500)
+        Button(self.root, text="...", command=self.select_bigImg_paths).place(x=330, y=96)
+        Button(self.root, text="...", command=self.select_save_folder).place(x=330, y=196)
+        Button(self.root, text="Crop", command=self.getpath, activebackground="pink",
+               activeforeground="blue").place(x=145, y=500)
+        Button(self.root, text="Cancel", command=self.root.destroy, activebackground="pink",
+               activeforeground="blue").place(x=290, y=500)
         self.root.mainloop()
 
     def readTif(self, path):
@@ -91,19 +91,19 @@ class SlidingCrop:
         # 创建输出tif
         gTiffDriver = GetDriverByName("GTiff")
         ds = gTiffDriver.Create(path, im_width, im_height, im_bands, dtype, options=["COMPRESS=LZW", "BIGTIFF=YES"])
-        if (ds != None):
+        if ds is not None:
             ds.SetGeoTransform(im_geotrans)  # 写入仿射变换参数
             ds.SetProjection(im_proj)  # 写入投影
             if im_bands != 1:
                 for i in range(im_bands):
                     band = ds.GetRasterBand(i + 1)
                     band.WriteArray(img[i, :, :])
-                    if nodata != None:
+                    if nodata is not None:
                         band.SetNoDataValue(nodata)  # 可设置可不设置
             else:
                 band = ds.GetRasterBand(1)
-                band.WriteArray(img)
-                if nodata != None:
+                band.WriteArray(img[0])
+                if nodata is not None:
                     band.SetNoDataValue(nodata)  # 可设置可不设置
         else:
             root = Tk()
@@ -127,22 +127,22 @@ class SlidingCrop:
         return geox, geoy
 
     def select_bigImg_paths(self):
-        imgPaths = filedialog.askopenfilenames(title = 'Select multiple big images to be cropped...', initialdir = None,
-                                             filetypes = [(
-                                                 "image", ".tif"), ('All Files', ' *')], defaultextension = '.tif')
+        imgPaths = filedialog.askopenfilenames(title='Select multiple big images to be cropped...', initialdir=None,
+                                               filetypes=[(
+                                                   "image", ".tif"), ('All Files', ' *')], defaultextension='.tif')
         imgPaths = ";".join(imgPaths)
         self.e1_text.set(str(imgPaths))
 
     def select_save_folder(self):
-        savePath = filedialog.askdirectory(title = 'Select the save folder...', initialdir = None, mustexist = True)
+        savePath = filedialog.askdirectory(title='Select the save folder...', initialdir=None, mustexist=True)
         self.e2_text.set(str(savePath))
 
     def getpath(self):
         imgPaths, folderPath, crop_w, crop_h, re_rate, val_bool = self.e1_text.get(), self.e2_text.get(), \
-                                                                 int(self.crop_width.get()),\
-                                                                 int(self.crop_height.get()), \
-                                                                 float(self.crop_repetitionRate.get()), \
-                                                                 self.e3_num.get()
+                                                                  int(self.crop_width.get()), \
+                                                                  int(self.crop_height.get()), \
+                                                                  float(self.crop_repetitionRate.get()), \
+                                                                  self.e3_num.get()
 
         self.root.destroy()
         self.crop(imgPaths, folderPath, crop_h, crop_w, re_rate, val_bool)
@@ -168,26 +168,30 @@ class SlidingCrop:
                     pixel_X1 = int(j * size_w * (1 - repetitionRate) + 0.5) + size_w
                     # Calculate the top-left geographic coordinates to update the affine matrix
                     min_geox, max_geoy = self.pixel2geo(pixel_Y0, pixel_X0, geotrans)
-                    if (pixel_X1 <=  width) and (pixel_Y1 <= height):
-                        crop = src.read(window = Window(pixel_X0, pixel_Y0, size_w, size_h))
-                    elif (pixel_X1 <=  width) and (pixel_Y1 > height):
+                    if (pixel_X1 <= width) and (pixel_Y1 <= height):
+                        crop = src.read(window=Window(pixel_X0, pixel_Y0, size_w, size_h))
+                    elif (pixel_X1 <= width) and (pixel_Y1 > height):
                         if val_bool:
-                            min_geox, max_geoy = self.pixel2geo(pixel_Y0  - (pixel_Y1 - height), pixel_X0, geotrans)
-                            crop = src.read(window = Window(pixel_X0, pixel_Y0 - (pixel_Y1 - height), size_w, size_h))
+                            min_geox, max_geoy = self.pixel2geo(pixel_Y0 - (pixel_Y1 - height), pixel_X0, geotrans)
+                            crop = src.read(window=Window(pixel_X0, pixel_Y0 - (pixel_Y1 - height), size_w, size_h))
                         else:
-                            crop = src.read(window = Window(pixel_X0, pixel_Y0, size_w, size_h - (pixel_Y1 - height)))
+                            crop = src.read(window=Window(pixel_X0, pixel_Y0, size_w, size_h - (pixel_Y1 - height)))
                     elif (pixel_X1 > width) and (pixel_Y1 <= height):
                         if val_bool:
                             min_geox, max_geoy = self.pixel2geo(pixel_Y0, pixel_X0 - (pixel_X1 - width), geotrans)
-                            crop = src.read(window = Window(pixel_X0 - (pixel_X1 - width), pixel_Y0, size_w, size_h))
+                            crop = src.read(window=Window(pixel_X0 - (pixel_X1 - width), pixel_Y0, size_w, size_h))
                         else:
-                            crop = src.read(window = Window(pixel_X0, pixel_Y0, size_w - (pixel_X1 - width), size_h))
+                            crop = src.read(window=Window(pixel_X0, pixel_Y0, size_w - (pixel_X1 - width), size_h))
                     else:
                         if val_bool:
-                            min_geox, max_geoy = self.pixel2geo(pixel_Y0  - (pixel_Y1 - height), pixel_X0 - (pixel_X1 - width), geotrans)
-                            crop = src.read(window = Window(pixel_X0 - (pixel_X1 - width), pixel_Y0  - (pixel_Y1 - height), size_w, size_h))
+                            min_geox, max_geoy = self.pixel2geo(pixel_Y0 - (pixel_Y1 - height),
+                                                                pixel_X0 - (pixel_X1 - width), geotrans)
+                            crop = src.read(
+                                window=Window(pixel_X0 - (pixel_X1 - width), pixel_Y0 - (pixel_Y1 - height), size_w,
+                                              size_h))
                         else:
-                            crop = src.read(window = Window(pixel_X0, pixel_Y0, size_w - (pixel_X1 - width), size_h - (pixel_Y1 - height)))
+                            crop = src.read(window=Window(pixel_X0, pixel_Y0, size_w - (pixel_X1 - width),
+                                                          size_h - (pixel_Y1 - height)))
 
                     # Update the affine matrix
                     newgeotrans = list(geotrans)

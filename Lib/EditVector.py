@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 # Advanced zoom for images of various types from small to huge up to several GB
-from tkinter import ttk, TclError, Scrollbar, Label, Tk, Entry, Button, filedialog, StringVar, Canvas, _flatten, messagebox
+from tkinter import ttk, TclError, Scrollbar, Label, Tk, Entry, Button, filedialog, StringVar, Canvas, _flatten, \
+    messagebox
 from PIL import Image, ImageTk
-from math import ceil, log
+from math import ceil, log, degrees, atan, sqrt
 from warnings import catch_warnings, simplefilter
 from rasterio import open as rasterOpen
 from rasterio.windows import Window
-from cv2 import merge, drawContours
+from cv2 import merge, drawContours, minAreaRect, boxPoints
 from numpy import uint8, append, zeros, array
-from osgeo.gdal import Open, SetConfigOption, GDT_Byte, GDT_UInt16, GDT_CInt16, GDT_Float32, GDT_Float64, GetDriverByName as gdalGetDriverByName
+from osgeo.gdal import Open, SetConfigOption, GDT_Byte, GDT_UInt16, GDT_CInt16, GDT_Float32, GDT_Float64, \
+    GetDriverByName as gdalGetDriverByName
 from osgeo.osr import SpatialReference
 from osgeo.ogr import UseExceptions, FieldDefn, Geometry, wkbLinearRing, OFTReal, Feature, wkbLineString
 from osgeo.ogr import GetDriverByName as ogrGetDriverByName
@@ -31,33 +33,38 @@ class inputImgVector:
         Label(self.root, text="vector_path").place(x=100, y=200)
         self.e1_text = StringVar()
         self.e2_text = StringVar()
-        Entry(self.root, width = 20, textvariable = self.e1_text).place(x = 180, y = 100)
-        Entry(self.root, width = 20, textvariable = self.e2_text).place(x = 180, y = 200)
+        Entry(self.root, width=20, textvariable=self.e1_text).place(x=180, y=100)
+        Entry(self.root, width=20, textvariable=self.e2_text).place(x=180, y=200)
 
-        Button(self.root, text = "...", command = self.select_image_path).place(x = 330, y = 96)
-        Button(self.root, text = "...", command = self.select_vector_path).place(x = 330, y = 196)
-        Button(self.root, text = "Ok", command = self.getpath, activebackground = "pink",
-               activeforeground = "blue").place(x = 145, y = 300)
-        Button(self.root, text = "Cancel", command = self.root.destroy, activebackground = "pink",
-               activeforeground = "blue").place(x = 290, y = 300)
+        Button(self.root, text="...", command=self.select_image_path).place(x=330, y=96)
+        Button(self.root, text="...", command=self.select_vector_path).place(x=330, y=196)
+        Button(self.root, text="Ok", command=self.getpath, activebackground="pink",
+               activeforeground="blue").place(x=145, y=300)
+        Button(self.root, text="Cancel", command=self.root.destroy, activebackground="pink",
+               activeforeground="blue").place(x=290, y=300)
         self.root.mainloop()
 
     def select_image_path(self):
-        imgPath = filedialog.askopenfilename(title = 'Select the image path...', initialdir = None,
-                                             filetypes = [(
-                                                 "image", ".tif"), ('All Files', ' *')], defaultextension = '.tif')
+        imgPath = filedialog.askopenfilename(title='Select the image path...', initialdir=None,
+                                             filetypes=[(
+                                                 "image", ".tif"), ('All Files', ' *')], defaultextension='.tif')
         self.e1_text.set(str(imgPath))
 
     def select_vector_path(self):
-        maskPath = filedialog.askopenfilename(title = 'Select the mask path...', initialdir = None,
-                                              filetypes = [(
-                                                  "vector", ".shp"), ('All Files', ' *')], defaultextension = '.shp')
+        maskPath = filedialog.askopenfilename(title='Select the mask path...', initialdir=None,
+                                              filetypes=[(
+                                                  "vector", ".shp"), ('All Files', ' *')], defaultextension='.shp')
         self.e2_text.set(str(maskPath))
 
     def getpath(self):
         self.root.destroy()
         imagePath, maskPath = self.e1_text.get(), self.e2_text.get()
         self.flag = [imagePath, maskPath]
+
+    def pixel2geo(self, row, col, geoTrans):
+        geox = geoTrans[0] + geoTrans[1] * col + geoTrans[2] * row
+        geoy = geoTrans[3] + geoTrans[4] * col + geoTrans[5] * row
+        return geox, geoy
 
     def getCnts(self, vectorPath, imagePath):
         grid_ds = Open(imagePath)
@@ -86,7 +93,7 @@ class inputImgVector:
             feat = layer.GetNextFeature()
         layer.ResetReading()  # Traversal pointer recovers the original location
         del datasrc, layer
-        return [coors_draw, length, width, angle]
+        return [coors_draw, length, width, angle, geotrans]
 
     def geo2pixel(self, geox, geoy, geoTrans):
         #     Convert the given projection or geographic coordinates to the coordinates on the image map (
@@ -139,6 +146,8 @@ class editAndzoom(ttk.Frame):
         """ Initialize the ImageFrame """
         self.path = path
         self.tile_height = 1024
+        self.digitFlag = False
+        self.id_pts = None
         self.referencebox = []
         self.del_coor = []
         self.root = root
@@ -146,25 +155,25 @@ class editAndzoom(ttk.Frame):
         self.delta = 1.1  # zoom magnitude
         self.previous_state = 0  # Initialize the keyboard state
         self.interpolation_function = Image.ANTIALIAS  # could be: NEAREST, BILINEAR, BICUBIC and ANTIALIAS
-        self.grid(row = 0, column = 0, sticky = 'nswe')
-        self.grid_rowconfigure(0, weight = 1)
-        self.grid_columnconfigure(0, weight = 1)
+        self.grid(row=0, column=0, sticky='nswe')
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
         # Vertical and horizontal scrollbars for canvas
-        hbar = CreateScrollbar(self, orient = 'horizontal')
-        vbar = CreateScrollbar(self, orient = 'vertical')
-        hbar.grid(row = 1, column = 0, sticky = 'we')
-        vbar.grid(row = 0, column = 1, sticky = 'ns')
+        hbar = CreateScrollbar(self, orient='horizontal')
+        vbar = CreateScrollbar(self, orient='vertical')
+        hbar.grid(row=1, column=0, sticky='we')
+        vbar.grid(row=0, column=1, sticky='ns')
         # Create a message prompt label
         self.var_text = StringVar()
-        Label(self.root, textvariable = self.var_text, fg = 'green', font = ("黑体", 30)).grid(row = 2, sticky = 'w')
+        Label(self.root, textvariable=self.var_text, fg='green', font=("黑体", 21)).grid(row=2, sticky='w')
 
         # Create canvas and bind it with scrollbars. Public for outer classes
-        self.canvas = Canvas(self, highlightthickness = 0,
-                             xscrollcommand = hbar.set, yscrollcommand = vbar.set)
-        self.canvas.grid(row = 0, column = 0, sticky = 'nswe')
+        self.canvas = Canvas(self, highlightthickness=0,
+                             xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+        self.canvas.grid(row=0, column=0, sticky='nswe')
         self.update()
-        hbar.configure(command = self.scroll_x)  # bind scrollbars to the canvas
-        vbar.configure(command = self.scroll_y)
+        hbar.configure(command=self.scroll_x)  # bind scrollbars to the canvas
+        vbar.configure(command=self.scroll_y)
 
         with catch_warnings():
             simplefilter('ignore')
@@ -182,12 +191,15 @@ class editAndzoom(ttk.Frame):
         self.canvas.tag_bind('one', '<ButtonPress-3>', self.delete)
         self.canvas.bind('<ButtonPress-2>', self.move_start)  # remember canvas position
         self.canvas.bind('<B2-Motion>', self.move_to)  # move canvas to the new position
-        self.canvas.bind("<Control-z>", self.undel)
+        self.canvas.bind("<Control-z>", self.undo)
         self.canvas.bind("<ButtonPress-1>", self.click)
         self.canvas.bind("<B1-Motion>", self.press_move)
         self.canvas.bind("<ButtonRelease-1>", self.left_release)
         self.canvas.bind('<MouseWheel>', self.zoom)  # zoom image
         self.canvas.bind('<KeyPress-q>', self.quit)
+        self.root.bind_all("<Control-d>", self.digit)
+        self.root.bind_all("<Return>", self.sketch_finish)
+        self.root.bind_all("<Control-Alt-d>", self.no_digit)
         # Handle keystrokes in idle mode, because program slows down on a weak computers,
         # when too many key stroke events in the same time
         self.canvas.bind('<Key>', lambda event: self.canvas.after_idle(self.keystroke, event))
@@ -233,12 +245,13 @@ class editAndzoom(ttk.Frame):
             w /= self.reduction  # divide on reduction degree
             h /= self.reduction  # divide on reduction degree
             self.pyramid.append(self.pyramid[-1].resize((int(w + 0.5), int(h + 0.5)), self.interpolation_function))
-        self.var_text.set('Promt: Creating {0}-layer image pyramids successfully!'.format(n))
+        self.var_text.set('Prompt: Creating {0}-layer image pyramids successfully!'.format(n))
         # Redraw some figures before showing image on the screen
-        for i in range(len(cnts)):
+        self.num = len(cnts)
+        for i in range(self.num):
             contour = cnts[i]
-            contour = append(contour, [list(contour[0])], axis = 0)
-            self.canvas.create_line(list((contour.flatten())), fill = 'red', activefill = 'gray75', tag = (i, 'one'))
+            contour = append(contour, [list(contour[0])], axis=0)
+            self.canvas.create_line(list((contour.flatten())), fill='red', activefill='gray75', tag=(i, 'one'))
 
         self.canvas.lower(self.container)
         self.show()  # show image on the canvas
@@ -269,7 +282,7 @@ class editAndzoom(ttk.Frame):
             j += 1
             band = min(self.tile_height, self.imheight - i)  # height of the tile
             ds = rasterOpen(self.path)
-            img = ds.read(window = Window(0, i, self.imwidth, band))
+            img = ds.read(window=Window(0, i, self.imwidth, band))
             del ds
             r = img[0]
             g = img[1]
@@ -309,7 +322,7 @@ class editAndzoom(ttk.Frame):
                       max(self.box_image[2], box_canvas[2]), max(self.box_image[3], box_canvas[3])]
 
         # convert to integer or it will not work properly  
-        self.canvas.configure(scrollregion = tuple(map(int, box_scroll)))  # set scroll region
+        self.canvas.configure(scrollregion=tuple(map(int, box_scroll)))  # set scroll region
 
         # calculate the coordinate range of visible area
         x1 = max(box_canvas[0] - self.box_image[0], 0)
@@ -321,7 +334,7 @@ class editAndzoom(ttk.Frame):
             h = int((y2 - y1) / self.imscale)  # height of the tile band
             w = int((x2 - x1) / self.imscale)  # width of the tile band
             ds = rasterOpen(self.path)
-            img = ds.read(window = Window(int(x1 / self.imscale + 0.5), int(y1 / self.imscale + 0.5),
+            img = ds.read(window=Window(int(x1 / self.imscale + 0.5), int(y1 / self.imscale + 0.5),
                                         int(w + 0.5), int(h + 0.5)))
             del ds
             r = img[0]
@@ -392,6 +405,13 @@ class editAndzoom(ttk.Frame):
         self.canvas.scale('all', x, y, scale, scale)  # zoom all object
         self.show()
 
+        if self.id_pts:
+            if len(self.digit_pts) == 2:
+                temp_pts = self.canvas.coords(self.id_pts)
+                self.digit_pts = [(temp_pts[0] + temp_pts[2]) / 2.0, (temp_pts[1] + temp_pts[3]) / 2.0]
+            else:
+                self.digit_pts = self.canvas.coords(self.id_pts)
+
     def keystroke(self, event):
         """ Scrolling with the keyboard.
             Independent from the language of the keyboard, CapsLock, <Ctrl>+<key>, etc. """
@@ -409,78 +429,148 @@ class editAndzoom(ttk.Frame):
             elif event.keycode in [83, 40, 98]:  # scroll down, keys 's' or 'Down'
                 self.scroll_y('scroll', 1, 'unit', event=event)
 
-    def click(self, event):
-        # Save the beginning position of the mouse dragged
-        self.start_x, self.start_y = self.getcanvasxy(event)
-        # Create a rectangle if it does not exist
-        self.rect = self.canvas.create_rectangle(self.start_x, self.start_y, self.start_x + 1, self.start_y + 1,
-                                                 outline='gray75', fill='')
+    def digit(self, event):
+        self.var_text.set("Prompt: You have entered the digital status and can digitize new surface ruptures!")
+        self.add_cnts = []
+        self.digit_pts = []
+        self.digitFlag = True
 
-    # Draws a dynamic rectangle
-    def press_move(self, event):
-        curX, curY = self.getcanvasxy(event)
-        # Drag the mouse to expand the rectangle
-        self.canvas.coords(self.rect, self.start_x, self.start_y, curX, curY)
-
-    def left_release(self, event):
-        global del_index
-        self.canvas.delete(self.rect)
-        x, y = self.getcanvasxy(event)
-        self.selection = [self.start_x, self.start_y, x, y]
-        #  print(self.selection[0],self.selection[1], self.selection[2], self.selection[3])
-        # Return the ID of all canvas objects that overlap the qualified rectangle (including, of course, canvas objects within the qualified rectangle)
-        # -- If no canvas object specified by item exists, no error is raised
-        # -- Item can be the ID of a single canvas object or a Tag
-        allid = self.canvas.find_overlapping(self.selection[0], self.selection[1], self.selection[2], self.selection[3])
-        temp_coors = []
-        temp_tags = []
-        allid = list(allid)
-        # If the background image is selected, extract the ID to prevent the background image from being deleted by mistake
-        try:
-            allid.remove(self.bg_id)
-        except:
-            pass
-        # If the container rectangle is selected, extract the ID to prevent the container rectangle from being deleted by mistake
-        try:
-            allid.remove(self.container)
-        except:
-            pass
-        for singleid in allid:
-            if self.canvas.gettags(singleid):
-                temp_tags.append(int(self.canvas.gettags(singleid)[0]))
-                temp_coors.append(self.canvas.coords(singleid))
-            self.canvas.delete(singleid)
-        self.referencebox.append(self.box_image)
-        del_index.append(temp_tags)
-        self.del_coor.append(temp_coors)
-
-    def undel(self, event):
-        global del_index
-        box_image_startx = self.box_image[0]
-        box_image_starty = self.box_image[1]
-        box_image_w = self.box_image[2] - self.box_image[0]
-        box_image_h = self.box_image[3] - self.box_image[1]
-        if del_index == []:
-            self.var_text.set('Nothing need to be Undo!')
-        else:
-            index, coor = del_index.pop(), self.del_coor.pop()
-            box = self.referencebox.pop()
+    def sketch_finish(self, event):
+        num = len(self.digit_pts)
+        self.digit_pts = self.canvas.coords(self.id_pts)
+        if num >= 6:
+            new_digit = []
+            box = self.box_image
             reference_startx = box[0]
             reference_starty = box[1]
             reference_w = box[2] - box[0]
             reference_h = box[3] - box[1]
-            # Retrieves the coordinates and labels of an object that was last deleted，and redraw it onto the canvas
-            for singletag, item in zip(index, coor):
-                # Recalculate and redraw the coordinates on the canvas
-                new_item = []
-                coors_x = [item[i] for i in range(len(item)) if i % 2 == 0]
-                coors_y = [item[i] for i in range(len(item)) if i % 2 != 0]
-                for coorx, coory in zip(coors_x, coors_y):
-                    x = (coorx - reference_startx) / reference_w * box_image_w + box_image_startx
-                    y = (coory - reference_starty) / reference_h * box_image_h + box_image_starty
-                    new_item.append(x)
-                    new_item.append(y)
-                self.canvas.create_line(new_item, fill = 'red', activefill = 'gray75', tag = (singletag, 'one'))
+            # Calculate the pixel coordinates under the original scale based on the existing coordinates
+            for i in range(0, len(self.digit_pts), 2):
+                x = (self.digit_pts[i] - reference_startx) / reference_w * self.imwidth
+                y = (self.digit_pts[i + 1] - reference_starty) / reference_h * self.imheight
+                new_digit.append([int(x + 0.5), int(y + 0.5)])
+
+            self.add_cnts.append(array(new_digit))
+            # Close the polyline and draw it on the canvas
+            self.digit_pts.append(self.digit_pts[0])
+            self.digit_pts.append(self.digit_pts[1])
+            self.id_pts = self.canvas.create_line(self.digit_pts, fill='red', activefill='gray75',
+                                                  tag=(self.num - 1 + len(self.add_cnts), 'one'))
+            self.digit_pts = []
+            self.id_pts = []
+        else:
+            self.var_text.set("Prompt: Unable to close the folding line!")
+
+    def no_digit(self, event):
+        if self.digitFlag:
+            self.digitFlag = False
+            self.var_text.set(
+                "Prompt: Digital is over. Remove the surface rupture unwanted by pulling the box with the left mouse button!")
+
+    def click(self, event):
+        # Save the beginning position of the mouse dragged
+        self.start_x, self.start_y = self.getcanvasxy(event)
+        if self.digitFlag:
+            self.digit_pts.append(self.start_x)
+            self.digit_pts.append(self.start_y)
+            self.digitize()
+        else:
+            # Create a rectangle if it does not exist
+            self.rect = self.canvas.create_rectangle(self.start_x, self.start_y, self.start_x + 1, self.start_y + 1,
+                                                     outline='gray75', fill='')
+
+    # Draws a dynamic rectangle
+    def press_move(self, event):
+        if self.digitFlag:
+            pass
+        else:
+            curX, curY = self.getcanvasxy(event)
+            # Drag the mouse to expand the rectangle
+            self.canvas.coords(self.rect, self.start_x, self.start_y, curX, curY)
+
+    def left_release(self, event):
+        if self.digitFlag:
+            pass
+        else:
+            global del_index
+            self.canvas.delete(self.rect)
+            x, y = self.getcanvasxy(event)
+            self.selection = [self.start_x, self.start_y, x, y]
+            #  print(self.selection[0],self.selection[1], self.selection[2], self.selection[3])
+            # Return the ID of all canvas objects that overlap the qualified rectangle (including, of course, canvas objects within the qualified rectangle)
+            # -- If no canvas object specified by item exists, no error is raised
+            # -- Item can be the ID of a single canvas object or a Tag
+            allid = self.canvas.find_overlapping(self.selection[0], self.selection[1], self.selection[2],
+                                                 self.selection[3])
+            temp_coors = []
+            temp_tags = []
+            allid = list(allid)
+            # If the background image is selected, extract the ID to prevent the background image from being deleted by mistake
+            try:
+                allid.remove(self.bg_id)
+            except:
+                pass
+            # If the container rectangle is selected, extract the ID to prevent the container rectangle from being deleted by mistake
+            try:
+                allid.remove(self.container)
+            except:
+                pass
+            for singleid in allid:
+                if self.canvas.gettags(singleid):
+                    temp_tags.append(int(self.canvas.gettags(singleid)[0]))
+                    temp_coors.append(self.canvas.coords(singleid))
+                self.canvas.delete(singleid)
+            self.referencebox.append(self.box_image)
+            del_index.append(temp_tags)
+            self.del_coor.append(temp_coors)
+
+    def digitize(self):
+        if len(self.digit_pts) == 0:
+            self.canvas.delete(self.id_pts)
+        elif len(self.digit_pts) == 2:
+            self.canvas.delete(self.id_pts)
+            self.id_pts = self.canvas.create_oval(self.digit_pts[0], self.digit_pts[1], self.digit_pts[0],
+                                                  self.digit_pts[1], outline='red',
+                                                  fill='red')
+        else:
+            self.canvas.delete(self.id_pts)
+            self.id_pts = self.canvas.create_line(self.digit_pts, fill='red')
+
+    def undo(self, event):
+        if self.digitFlag:
+            if self.digit_pts:
+                self.digit_pts = self.digit_pts[:-2]
+                self.digitize()
+            else:
+                self.var_text.set('Nothing needs to be Undo!')
+        else:
+            global del_index
+            box_image_startx = self.box_image[0]
+            box_image_starty = self.box_image[1]
+            box_image_w = self.box_image[2] - self.box_image[0]
+            box_image_h = self.box_image[3] - self.box_image[1]
+            if del_index == []:
+                self.var_text.set('Nothing needs to be Undo!')
+            else:
+                index, coor = del_index.pop(), self.del_coor.pop()
+                box = self.referencebox.pop()
+                reference_startx = box[0]
+                reference_starty = box[1]
+                reference_w = box[2] - box[0]
+                reference_h = box[3] - box[1]
+                # Retrieves the coordinates and labels of an object that was last deleted，and redraw it onto the canvas
+                for singletag, item in zip(index, coor):
+                    # Recalculate and redraw the coordinates on the canvas
+                    new_item = []
+                    coors_x = [item[i] for i in range(len(item)) if i % 2 == 0]
+                    coors_y = [item[i] for i in range(len(item)) if i % 2 != 0]
+                    for coorx, coory in zip(coors_x, coors_y):
+                        x = (coorx - reference_startx) / reference_w * box_image_w + box_image_startx
+                        y = (coory - reference_starty) / reference_h * box_image_h + box_image_starty
+                        new_item.append(x)
+                        new_item.append(y)
+                    self.canvas.create_line(new_item, fill='red', activefill='gray75', tag=(singletag, 'one'))
 
     def delete(self, event):
         global del_index
@@ -512,36 +602,35 @@ class output:
         self.geotrans, self.proj = gdal_ds.GetGeoTransform(), gdal_ds.GetProjection()
         self.imheight, self.imwidth = ds.height, ds.width
         del gdal_ds, ds
-        self.cnts, self.resolution, self.length, self.width, self.angle = cnts, self.geotrans[
-            1], lengths, widths, angles
+        self.cnts, self.length, self.width, self.angle = cnts, lengths, widths, angles
         self.root.geometry(size_align)
         self.root.title('Save the result...')
         # Creates the first Label Label
-        Label(self.root, text = "raster_path").place(x = 100, y = 100)
+        Label(self.root, text="raster_path").place(x=100, y=100)
         # Creates the second Label Label
-        Label(self.root, text = "vector_path").place(x = 100, y = 200)
+        Label(self.root, text="vector_path").place(x=100, y=200)
         self.e1_text = StringVar()
         self.e2_text = StringVar()
-        Entry(self.root, width = 20, textvariable = self.e1_text).place(x = 180, y = 100)
-        Entry(self.root, width = 20, textvariable = self.e2_text).place(x = 180, y = 200)
+        Entry(self.root, width=20, textvariable=self.e1_text).place(x=180, y=100)
+        Entry(self.root, width=20, textvariable=self.e2_text).place(x=180, y=200)
 
-        Button(self.root, text = "...", command = self.select_raster_path).place(x = 330, y = 96)
-        Button(self.root, text = "...", command = self.select_vector_path).place(x = 330, y = 196)
-        Button(self.root, text = "Save", command = self.output, activebackground = "pink",
-                           activeforeground = "blue").place(x = 145, y = 300)
-        Button(self.root, text = "Cancel", command = self.root.destroy, activebackground = "pink",
-                             activeforeground = "blue").place(x = 290, y = 300)
+        Button(self.root, text="...", command=self.select_raster_path).place(x=330, y=96)
+        Button(self.root, text="...", command=self.select_vector_path).place(x=330, y=196)
+        Button(self.root, text="Save", command=self.output, activebackground="pink",
+               activeforeground="blue").place(x=145, y=300)
+        Button(self.root, text="Cancel", command=self.root.destroy, activebackground="pink",
+               activeforeground="blue").place(x=290, y=300)
 
     def select_raster_path(self):
-        save_file = filedialog.asksaveasfilename(title = 'Select the raster file storage path...', initialdir = None,
-                                                 filetypes = [(
-                                                     "raster", ".tif"), ('All Files', ' *')], defaultextension = '.tif')
+        save_file = filedialog.asksaveasfilename(title='Select the raster file storage path...', initialdir=None,
+                                                 filetypes=[(
+                                                     "raster", ".tif"), ('All Files', ' *')], defaultextension='.tif')
         self.e1_text.set(str(save_file))
 
     def select_vector_path(self):
-        save_file = filedialog.asksaveasfilename(title = 'Select the vector file storage path...', initialdir = None,
-                                                 filetypes = [(
-                                                     "vector", ".shp"), ('All Files', ' *')], defaultextension = '.shp')
+        save_file = filedialog.asksaveasfilename(title='Select the vector file storage path...', initialdir=None,
+                                                 filetypes=[(
+                                                     "vector", ".shp"), ('All Files', ' *')], defaultextension='.shp')
         self.e2_text.set(str(save_file))
 
     def pixel2geo(self, row, col, geoTrans):
@@ -549,7 +638,7 @@ class output:
         geoy = geoTrans[3] + geoTrans[4] * col + geoTrans[5] * row
         return geox, geoy
 
-    def writeTif(self, path, img, im_geotrans, im_proj, nodata = None):
+    def writeTif(self, path, img, im_geotrans, im_proj, nodata=None):
         data_type = img.dtype.name
         if 'uint8' in data_type:
             dtype = GDT_Byte
@@ -590,7 +679,6 @@ class output:
     def output(self):
         raster_path = self.e1_text.get()
         vector_path = self.e2_text.get()
-        print(raster_path)
         maskout = zeros((self.image.shape[0], self.image.shape[1], 3), uint8)
         if vector_path:
             UseExceptions()
@@ -616,7 +704,7 @@ class output:
             in_srs.ImportFromWkt(self.proj)  # Import projection coordinate system
 
             # Create a layer:creating a polyline layer. name==>SHP name
-            layer = ds.CreateLayer(name, in_srs, geom_type = wkbLineString)
+            layer = ds.CreateLayer(name, in_srs, geom_type=wkbLineString)
 
             if layer is None:
                 messagebox.showerror("Error", "Failed to create the vector layer!\n")
@@ -639,10 +727,37 @@ class output:
                     box.AddPoint(geox, geoy)  # Place the contour coordinates in a single polygon line ring
                 box.CloseRings()  # Closed loop
 
+                if length == -1 or width == -1 or angle == -1:
+                    rect = minAreaRect(cnt)
+                    [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = boxPoints(rect)
+                    geox0, geoy0 = self.pixel2geo(y0, x0, self.geotrans)
+                    geox1, geoy1 = self.pixel2geo(y1, x1, self.geotrans)
+                    geox2, geoy2 = self.pixel2geo(y2, x2, self.geotrans)
+                    w = sqrt((geox0 - geox1) ** 2 + (geoy0 - geoy1) ** 2)
+                    h = sqrt((geox2 - geox1) ** 2 + (geoy2 - geoy1) ** 2)
+                    if w > h:
+                        length = w
+                        width = h
+                        if geox0 == geox1:
+                            angle = 90
+                        else:
+                            k = (geoy0 - geoy1) / (geox0 - geox1)
+                            angle = degrees(atan(k))
+                            if angle < 0:
+                                angle = 180 + angle
+                    else:
+                        length = h
+                        width = w
+                        if geox2 == geox1:
+                            angle = 90
+                        else:
+                            k = (geoy2 - geoy1) / (geox2 - geox1)
+                            angle = degrees(atan(k))
+                            if angle < 0:
+                                angle = 180 + angle
+
                 feature = Feature(Defn)
-                length = length * self.resolution
                 feature.SetField(0, length)
-                width = width * self.resolution
                 feature.SetField(1, width)
                 feature.SetField(2, angle)
                 feature.SetGeometry(box)
@@ -666,15 +781,54 @@ if __name__ == '__main__':
     input = inputImgVector()
     if input.flag:
         imgPath, vectorPath = input.flag
-        contours, lengthlist, widthlist, anglelist = input.getCnts(vectorPath, imgPath)
+        contours, lengthlist, widthlist, anglelist, geotrans = input.getCnts(vectorPath, imgPath)
         del_index = []
         mainWindow = Tk()
         mainWindow.state('zoomed')
         mainWindow.title('Edit and Zoom')
         frame = editAndzoom(mainWindow, imgPath, contours)
-        mainWindow.columnconfigure(0, weight = 1)
-        mainWindow.rowconfigure(0, weight = 1)
+        mainWindow.columnconfigure(0, weight=1)
+        mainWindow.rowconfigure(0, weight=1)
         mainWindow.mainloop()
+        try:
+            add_cnts = frame.add_cnts
+            for i in range(len(add_cnts)):
+                cnt = add_cnts[i]
+                rect = minAreaRect(cnt)
+                [[x0,y0], [x1,y1], [x2,y2], [x3,y3]] = boxPoints(rect)
+                geox0, geoy0 = input.pixel2geo(y0, x0, geotrans)
+                geox1, geoy1 = input.pixel2geo(y1, x1, geotrans)
+                geox2, geoy2 = input.pixel2geo(y2, x2, geotrans)
+                w = sqrt((geox0 - geox1) ** 2 + (geoy0 - geoy1) ** 2)
+                h = sqrt((geox2 - geox1) ** 2 + (geoy2 - geoy1) ** 2)
+                if w > h:
+                    length = w
+                    width = h
+                    if geox0 == geox1:
+                        angle = 90
+                    else:
+                        k = (geoy0 - geoy1) / (geox0 - geox1)
+                        angle = degrees(atan(k))
+                        if angle < 0:
+                            angle = 180 + angle
+                else:
+                    length = h
+                    width = w
+                    if geox2 == geox1:
+                        angle = 90
+                    else:
+                        k = (geoy2 - geoy1) / (geox2 - geox1)
+                        angle = degrees(atan(k))
+                        if angle < 0:
+                            angle = 180 + angle
+
+                lengthlist.append(length)
+                widthlist.append(width)
+                anglelist.append(angle)
+                contours.append(cnt)
+        except:
+            pass
+
         number = len(contours)
         if del_index:
             # Indirectly removes elements from a list based on the index without changing the original list index
@@ -695,4 +849,3 @@ if __name__ == '__main__':
         root = Tk()
         root.withdraw()
         messagebox.showerror("Error", "Please enter the correct path!")
-

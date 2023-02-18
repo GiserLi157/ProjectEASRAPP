@@ -30,43 +30,59 @@ class CreateScrollbar(Scrollbar):
 class InputImage:
     def __init__(self, root):
         width = 300
-        height = 200
+        height = 250
         size_align = '%dx%d+%d+%d' % (
             width, height, (root.winfo_screenwidth() - width) / 2, (root.winfo_screenheight() - height) / 2)
         self.root = root
         self.root.geometry(size_align)
         self.root.title('Input surface rupture vector file...')
         # Creates the Label
-        Label(self.root, text="shp_path:").place(x=27, y=75)
+        Label(self.root, text="shp_path:").place(x=27, y=65)
         self.e_text = StringVar()
-        Entry(self.root, width=20, textvariable=self.e_text).place(x=107, y=75)
+        Entry(self.root, width=20, textvariable=self.e_text).place(x=107, y=65)
 
-        Button(self.root, text="...", command=self.select_vector_path).place(x=257, y=71)
+        Button(self.root, text="...", command=self.select_vector_path).place(x=257, y=61)
+
+        # Creates the Label
+        Label(self.root, text="faultTrace:").place(x=27, y=137)
+        self.e_text1 = StringVar()
+        Entry(self.root, width=20, textvariable=self.e_text1).place(x=107, y=137)
+
+        Button(self.root, text="...", command=self.select_fault_trace).place(x=257, y=133)
         Button(self.root, text="Ok", command=self.output, activebackground="pink", activeforeground="blue").place(
-            x=40, y=150)
+            x=40, y=187)
         Button(self.root, text="Cancel", command=self.root.destroy, activebackground="pink",
-               activeforeground="blue").place(x=230, y=150)
+               activeforeground="blue").place(x=230, y=187)
 
     def select_vector_path(self):
-        image_path = filedialog.askopenfilename(title='Select the vector file of surface rupture...', initialdir=None,
+        vector_path = filedialog.askopenfilename(title='Select the vector file of surface rupture...', initialdir=None,
+                                                 filetypes=[(
+                                                     "vector", ".shp"), ('All Files', ' *')], defaultextension='.shp')
+        self.e_text.set(str(vector_path))
+
+    def select_fault_trace(self):
+        fault_path = filedialog.askopenfilename(title='Select the vector file of fault trace...', initialdir=None,
                                                 filetypes=[(
                                                     "vector", ".shp"), ('All Files', ' *')], defaultextension='.shp')
-        self.e_text.set(str(image_path))
+        self.e_text1.set(str(fault_path))
 
     def output(self):
         global path
+        global fault
         path = self.e_text.get()
+        fault = self.e_text1.get()
         self.root.destroy()
 
 
 class Rupture(ttk.Frame):
     """ Display and zoom image """
 
-    def __init__(self, root, path):
+    def __init__(self, root, path, faultTrace):
         super().__init__()
         """ Initialize the ImageFrame """
         self.root = root
         self.path = path
+        self.fault_trace = faultTrace
         self.screenShot = False
         self.old_x, self.old_y, self.new_x, self.new_y = None, None, None, None
         self.textid = []
@@ -117,18 +133,38 @@ class Rupture(ttk.Frame):
         self.text.set("Prompt: No hint at present!")
         self.translateh = self.winfo_screenheight()
         self.translatew = self.winfo_screenwidth()
-        coors, coors_draw = [], []
+        self.coors_fault, coors, coors_draw = [], [], []
         shp_driver = ogrGetDriverByName('Esri Shapefile')
         # The second argument is 0 (read-only), 1 (writable), default 0 (read-only)
+        if self.fault_trace:
+            faultsrc = shp_driver.Open(self.fault_trace)
+            if faultsrc == "None":
+                self.text.set("Failed to open the fault trace vector file!")
+            fault_layer = faultsrc.GetLayer(0)  # obtain layer
+            fault_feat = fault_layer.GetNextFeature()
+            while fault_feat:
+                x_left, x_right, y_bottom, y_up = fault_layer.GetExtent()
+                fault_geom = fault_feat.GetGeometryRef()
+                for i in range(fault_geom.GetPointCount()):
+                    x = fault_geom.GetX(i)
+                    y = fault_geom.GetY(i)
+                    draw_y = self.translateh - (y - y_bottom) - int(self.translateh / 2)
+                    draw_x = x - x_left + int(self.translatew / 2)
+                    self.coors_fault.append(draw_x)
+                    self.coors_fault.append(draw_y)
+                fault_feat = fault_layer.GetNextFeature()
+            del faultsrc
+
         datasrc = shp_driver.Open(self.path)
         if datasrc == "None":
             self.text.set("Failed to open the vector file!")
+
         layer = datasrc.GetLayer(0)  # obtain layer
         x_left, x_right, y_bottom, y_up = layer.GetExtent()
         # Loop through all elements in the layer
         feat = layer.GetNextFeature()
         while feat:
-            coors_geom = []
+            # coors_geom = []
             coors_geom_draw = []
             self.length.append(feat.GetField('length'))
             self.width.append(feat.GetField('width'))
@@ -139,9 +175,9 @@ class Rupture(ttk.Frame):
                 y = geom.GetY(i)
                 draw_y = self.translateh - (y - y_bottom) - int(self.translateh / 2)
                 draw_x = x - x_left + int(self.translatew / 2)
-                coors_geom.append([x, y])
+                # coors_geom.append([x, y])
                 coors_geom_draw.append([draw_x, draw_y])
-            coors.append(array(coors_geom))
+            # coors.append(array(coors_geom))
             coors_draw.append(array(coors_geom_draw))
             feat = layer.GetNextFeature()
         layer.ResetReading()  # Traversal pointer recovers the original location
@@ -190,7 +226,7 @@ class Rupture(ttk.Frame):
             contour = append(contour, [list(contour[0])], axis=0)
             self.canvas.create_line(list((contour.flatten())), fill='green', tag=('contour',))
 
-        self.convex_id = self.canvas.create_line(self.convex, fill='red', tag=('convex',))
+        self.convex_id = self.canvas.create_line(self.convex, fill='black', tag=('convex',), dash=(5, 2))
         self.textsize = 10
         for i in range(int(len(self.convex) / 2 - 1)):
             self.canvas.create_text(self.convex[i * 2], self.convex[i * 2 + 1], text=str(i + 1), font=(
@@ -236,7 +272,7 @@ class Rupture(ttk.Frame):
 
     def right_release(self, event):
         self.canvas.delete(self.convex_id)
-        self.convex_id = self.canvas.create_line(self.new_convex, fill='red', tag=('convex',))
+        self.convex_id = self.canvas.create_line(self.new_convex, fill='black', tag=('convex',), dash=(5, 2))
         self.canvas.delete('text')
         for i in range(int(len(self.new_convex) / 2 - 1)):
             self.canvas.create_text(self.new_convex[i * 2], self.new_convex[i * 2 + 1], text=str(
@@ -332,21 +368,21 @@ class Rupture(ttk.Frame):
                     for singleid in allid:
                         self.canvas.delete(singleid)
                 self.id_pts = self.canvas.create_oval(self.fault_pts[0], self.fault_pts[1], self.fault_pts[0],
-                                                      self.fault_pts[1], fill='black', tags=('fault',))
+                                                      self.fault_pts[1], fill='red', tags=('fault',))
             else:
                 # avoid deleting the range indicating container and the background image
                 allid = list(self.canvas.find_withtag('fault'))
                 if allid:
                     for singleid in allid:
                         self.canvas.delete(singleid)
-                self.id_pts = self.canvas.create_line(self.fault_pts, fill='black', tags=('fault',))
+                self.id_pts = self.canvas.create_line(self.fault_pts, fill='red', tags=('fault',))
 
     def undo(self, event):
         if self.convexIndex_add:
             self.new_convex = [self.new_convex[index] for index in range(len(self.new_convex)) if
                                index not in self.convexIndex_add[-2:]]
             self.canvas.delete(self.convex_id)
-            self.convex_id = self.canvas.create_line(self.new_convex, fill='red', tag=('convex',))
+            self.convex_id = self.canvas.create_line(self.new_convex, fill='black', tag=('convex',), dash=(5, 2))
             self.convexIndex_add = self.convexIndex_add[:-2]
             self.canvas.delete('text')
             for i in range(int(len(self.new_convex) / 2 - 1)):
@@ -359,14 +395,20 @@ class Rupture(ttk.Frame):
     def fault_endpoint(self, event):
         self.drawfault = True
         if self.create:
-            self.canvas.delete("axis")
+            # self.canvas.delete("axis")
             self.canvas.delete("o")
             self.canvas.delete("width")
-            self.canvas.delete("base")
+            self.canvas.delete("w_l")
+            self.canvas.delete("arrow")
             self.canvas.delete("fault")
             self.create = False
             if len(self.fault_pts) == 4:
                 self.fault_pts = []
+                x, y = self.getcanvasxy(event)
+                self.fault_pts.append(x)
+                self.fault_pts.append(y)
+                self.fault_draw()
+            else:
                 x, y = self.getcanvasxy(event)
                 self.fault_pts.append(x)
                 self.fault_pts.append(y)
@@ -385,28 +427,32 @@ class Rupture(ttk.Frame):
                 pass
         elif len(self.fault_pts) < 4:
             self.id_pts = self.canvas.create_oval(self.fault_pts[0], self.fault_pts[1], self.fault_pts[0],
-                                                  self.fault_pts[1], fill='black', tags=('fault',))
+                                                  self.fault_pts[1], fill='red', tags=('fault',))
         else:
             allid = list(self.canvas.find_withtag('fault'))
             if allid:
                 for singleid in allid:
                     self.canvas.delete(singleid)
-            self.id_pts = self.canvas.create_line(self.fault_pts, fill='black', tags=('fault',))
+            self.id_pts = self.canvas.create_line(self.fault_pts, fill='red', tags=('fault',))
 
     def createImage(self):
         self.coordinate_axis = []
+        intersection = []
         self.index_mixture = []
+        self.width_position = [0, 0]
         try:
-            self.canvas.delete("axis")
+            # self.canvas.delete("axis")
             self.canvas.delete("o")
             self.canvas.delete("width")
-            self.canvas.delete("base")
+            self.canvas.delete("arrow")
+            self.canvas.delete("w_l")
             self.canvas.delete("fault")
         except:
             pass
         if self.e_interval.get():
             interval = float(self.e_interval.get())
             interval *= self.scale
+
             if len(self.fault_pts) == 4:
                 if self.fault_pts[0] == self.fault_pts[2]:
                     tan_faultAngle = None
@@ -422,16 +468,17 @@ class Rupture(ttk.Frame):
                     x_bottom = self.new_convex[x_right_index * 2]
                     height = y_bottom - y0
                     # Find the coordinates of points 100 meters away from known points along the vertical direction of the fault line
-                    x_width = 100
-                    x1, y1, x2, y2 = x0 - x_width, y0, x0 + x_width, y0
-                    x_bottom1, y_bottom1, x_bottom2, y_bottom2 = x_bottom - x_width, y_bottom, x_bottom + x_width, y_bottom
-                    oval1 = self.canvas.create_oval([x0 - 2, y0 - 2, x0 + 2, y0 + 2], fill='blue', tags=('o',))
-                    self.canvas.lower(oval1)
-                    self.canvas.create_line([x1, y1, x2, y2], fill='blue', tags=('axis',))
-                    oval2 = self.canvas.create_oval([x_bottom1 - 2, y_bottom1 - 2, x_bottom2 + 2, y_bottom2 + 2],
-                                                    fill='blue',
-                                                    tags=('o',))
-                    self.canvas.lower(oval2)
+                    # x_width = 100
+                    # x1, y1, x2, y2 = x0 - x_width, y0, x0 + x_width, y0
+                    # x_bottom1, y_bottom1, x_bottom2, y_bottom2 = x_bottom - x_width, y_bottom, x_bottom + x_width, y_bottom
+
+                    # oval1 = self.canvas.create_oval([x0 - 2, y0 - 2, x0 + 2, y0 + 2], fill='blue', tags=('o',))
+                    # self.canvas.lower(oval1)
+                    # self.canvas.create_line([x1, y1, x2, y2], fill='blue', tags=('axis',))
+                    # oval2 = self.canvas.create_oval([x_bottom1 - 2, y_bottom1 - 2, x_bottom2 + 2, y_bottom2 + 2],
+                    #                                 fill='blue',
+                    #                                 tags=('o',))
+                    # self.canvas.lower(oval2)
                     self.coordinate_axis.append(x0)
                     self.coordinate_axis.append(y0)
                     # Calculate the position of the fault line after 100 meters of movement
@@ -443,11 +490,11 @@ class Rupture(ttk.Frame):
                         if move_height == interval and x0 != x_bottom:
                             oval = self.canvas.create_oval([x0 - 2, y0 - 2, x0 + 2, y0 + 2], fill='blue', tags=('o',))
                             self.canvas.lower(oval)
-                            self.canvas.create_line([x1, y1, x2, y2], fill='blue', tags=('axis',))
+                            # self.canvas.create_line([x1, y1, x2, y2], fill='blue', tags=('axis',))
                             self.coordinate_axis.append(x0)
                             self.coordinate_axis.append(y0)
                         dist += interval
-                    self.canvas.create_line(self.coordinate_axis, fill='black', tags=('w',))
+                    # self.canvas.create_line(self.coordinate_axis, fill='black', tags=('w',))
                 else:
                     x2 = max(self.fault_pts[0], self.fault_pts[2])
                     x1 = min(self.fault_pts[0], self.fault_pts[2])
@@ -474,9 +521,9 @@ class Rupture(ttk.Frame):
                         x1, y1, x2, y2 = x0 + x_width, y0 - y_height, x0 - x_width, y0 + y_height
                         # x_right1,y_right1,x_right2,y_right2 = x_right + x_width, y_right - y_height,x_right - x_width,y_right + y_height
 
-                    oval1 = self.canvas.create_oval([x0 - 2, y0 - 2, x0 + 2, y0 + 2], fill='blue', tags=('o',))
-                    self.canvas.lower(oval1)
-                    self.canvas.create_line([x1, y1, x2, y2], fill='blue', tags=('axis',))
+                    # oval1 = self.canvas.create_oval([x0 - 2, y0 - 2, x0 + 2, y0 + 2], fill='blue', tags=('o',))
+                    # self.canvas.lower(oval1)
+                    # self.canvas.create_line([x1, y1, x2, y2], fill='blue', tags=('axis',))
                     # (x0, y0) i.e. the point through which the line must pass if the interval is to be used to calculate the width
                     self.coordinate_axis.append(x0)
                     self.coordinate_axis.append(y0)
@@ -492,13 +539,13 @@ class Rupture(ttk.Frame):
                         else:
                             x0, y0, x1, y1, x2, y2 = x0 + move_width, y0 - move_height, x1 + move_width, y1 - move_height, x2 + move_width, y2 - move_height
                         if move_dist == interval and x0 != x_right:
-                            oval = self.canvas.create_oval([x0 - 2, y0 - 2, x0 + 2, y0 + 2], fill='blue', tags=('o',))
-                            self.canvas.lower(oval)
-                            self.canvas.create_line([x1, y1, x2, y2], fill='blue', tags=('axis',))
+                            # oval = self.canvas.create_oval([x0 - 2, y0 - 2, x0 + 2, y0 + 2], fill='blue', tags=('o',))
+                            # self.canvas.lower(oval)
+                            # self.canvas.create_line([x1, y1, x2, y2], fill='blue', tags=('axis',))
                             self.coordinate_axis.append(x0)
                             self.coordinate_axis.append(y0)
                         dist += interval
-                    self.canvas.create_line(self.coordinate_axis, fill='black', tags=('base',))
+                    # self.canvas.create_line(self.coordinate_axis, fill='black', tags=('base',))
 
                 convexPts_count = len(self.new_convex)  # the numbers of points in new convex
                 k0 = tan_theta  # Obtain the slope value of the line perpendicular to the direction of the fault
@@ -538,15 +585,44 @@ class Rupture(ttk.Frame):
                                     y_cal = k0 * x_cal + b0
                                 coors_cal.append([x_cal, y_cal])
                     if coors_cal:
+                        self.canvas.create_line([coors_cal[0][0], coors_cal[0][1], coors_cal[1][0], coors_cal[1][1]],
+                                                fill='blue', tags=('w_l',), dash=(3, 1))
                         distance = sqrt((coors_cal[0][0] - coors_cal[1][0]) ** 2 + (
                                 coors_cal[0][1] - coors_cal[1][1]) ** 2) / self.scale
                         self.index_mixture.append([j, distance])
+                        self.width_position.append((coors_cal[0][0] + coors_cal[1][0]) / 2)
+                        self.width_position.append((coors_cal[0][1] + coors_cal[1][1]) / 2)
+                        intersection.append(coors_cal[0])
+                        intersection.append(coors_cal[1])
+
+                if tan_faultAngle is None:
+                    x_list = [a[0] for a in intersection]
+
+                    arrow_pos = intersection[x_list.index(max(x_list))]
+                    arrow_pos[0] = arrow_pos[1] + 100
+                    y = arrow_pos[1] - 100
+                    x = arrow_pos[0]
+                else:
+                    y_list = [a[1] for a in intersection]
+
+                    arrow_pos = intersection[y_list.index(max(y_list))]
+                    arrow_pos[1] = arrow_pos[1] + 100
+
+                    if tan_faultAngle >= 0:
+                        x = arrow_pos[0] - 100
+                        y = tan_faultAngle * (-100) + arrow_pos[1]
+                    else:
+                        x = arrow_pos[0] + 100
+                        y = tan_faultAngle * 100 + arrow_pos[1]
+
+                self.canvas.create_line([x, y, arrow_pos[0], arrow_pos[1]], fill='red', tags=('arrow',), arrow='last',
+                                        arrowshape=(30, 30, 5))
 
                 # Labeled coordinate axes
                 if self.index_mixture:
                     for index_dist in self.index_mixture:
-                        self.canvas.create_text(self.coordinate_axis[index_dist[0]],
-                                                self.coordinate_axis[index_dist[0] + 1], text=(str(
+                        self.canvas.create_text(self.width_position[index_dist[0]],
+                                                self.width_position[index_dist[0] + 1], text=(str(
                                 round(index_dist[1], 1)) + ' m'), font=('Times', int(self.textsize)),
                                                 tags=('width',), fill='black')
 
@@ -576,11 +652,13 @@ class Rupture(ttk.Frame):
                     maxVal = max(self.length)
                     axcolor = 'lightgoldenrodyellow'
                     axleng = axes([0.2, 0.017, 0.6, 0.03], facecolor=axcolor)
-                    slength = matSlider(axleng, 'length', minVal, maxVal, valinit = minVal, valfmt = '%.5f', valstep = 0.01, color = 'lightgray')
+                    slength = matSlider(axleng, 'length', minVal, maxVal, valinit=minVal, valfmt='%.5f', valstep=0.01,
+                                        color='lightgray')
+
                     def update(val):
                         anglelist = []
                         thresLength = slength.val
-                        for length,new_angle in zip(self.length,self.angle):
+                        for length, new_angle in zip(self.length, self.angle):
                             if length >= thresLength:
                                 anglelist.append(new_angle)
                         ax.clear()
@@ -603,6 +681,7 @@ class Rupture(ttk.Frame):
                         ax.set_rgrids(arange(0, numbers_of_angles.max() + 1, 10), angle=0, weight='black')
                         ax.set_title('Rose diagram of angles between surface ruptures and fault trace', fontsize=15)
                         fig.canvas.draw_idle()
+
                     slength.on_changed(update)
                     slength.reset()
                     slength.set_val(minVal)
@@ -613,7 +692,233 @@ class Rupture(ttk.Frame):
                     self.create = True
                     show()
             else:
-                self.text.set("Please select the fault trace correctly!")
+                if self.fault_trace:
+                    if self.coors_fault[0] == self.coors_fault[2]:
+                        tan_faultAngle = None
+                        faultAngle = 90
+                        tan_theta = 0
+                        self.new_convex_y = [self.new_convex[i] for i in range(1, len(self.new_convex), 2)]
+                        y_index = self.new_convex_y.index(min(self.new_convex_y))
+                        y0 = self.new_convex_y[y_index]
+                        x0 = self.new_convex[y_index * 2]
+                        y_bottom_index = self.new_convex_y.index(max(self.new_convex_y))
+                        x_right_index = self.new_convex.index(max(self.new_convex_x))
+                        y_bottom = self.new_convex_y[y_bottom_index]
+                        x_bottom = self.new_convex[x_right_index * 2]
+                        height = y_bottom - y0
+                        self.coordinate_axis.append(x0)
+                        self.coordinate_axis.append(y0)
+                        # Calculate the position of the fault line after 100 meters of movement
+                        dist = 0
+                        allWidth_move = height
+                        while dist < allWidth_move:
+                            move_height = min(allWidth_move - dist, interval)
+                            x0, y0, x1, y1, x2, y2 = x0, y0 + move_height, x1, y1 + move_height, x2, y2 + move_height
+                            if move_height == interval and x0 != x_bottom:
+                                oval = self.canvas.create_oval([x0 - 2, y0 - 2, x0 + 2, y0 + 2], fill='blue',
+                                                               tags=('o',))
+                                self.canvas.lower(oval)
+                                # self.canvas.create_line([x1, y1, x2, y2], fill='blue', tags=('axis',))
+                                self.coordinate_axis.append(x0)
+                                self.coordinate_axis.append(y0)
+                            dist += interval
+                        # self.canvas.create_line(self.coordinate_axis, fill='black', tags=('w',))
+                    else:
+                        x2 = max(self.coors_fault[0], self.coors_fault[2])
+                        x1 = min(self.coors_fault[0], self.coors_fault[2])
+                        x2_index = self.coors_fault.index(x2)
+                        y2 = self.coors_fault[x2_index + 1]
+                        y1 = self.coors_fault[self.coors_fault.index(x1) + 1]
+                        tan_faultAngle = (y2 - y1) / (x2 - x1)
+                        faultAngle = degrees(atan(-1 * tan_faultAngle))
+                        tan_theta = -1 / tan_faultAngle
+                        self.new_convex_x = [self.new_convex[i] for i in range(0, len(self.new_convex), 2)]
+                        x_index = self.new_convex_x.index(min(self.new_convex_x))
+                        x0 = self.new_convex_x[x_index]
+                        y0 = self.new_convex[x_index * 2 + 1]
+                        x_right_index = self.new_convex_x.index(max(self.new_convex_x))
+                        x_right = self.new_convex_x[x_right_index]
+                        # y_right = self.new_convex[x_right_index * 2 + 1]
+                        width = x_right - x0
+                        x_width = sqrt(100 ** 2 * 1.0 / (tan_theta ** 2 + 1))
+                        y_height = sqrt(100 ** 2 * 1.0 / ((1 / tan_theta) ** 2 + 1))
+                        if tan_theta > 0:
+                            x1, y1, x2, y2 = x0 - x_width, y0 - y_height, x0 + x_width, y0 + y_height
+                            # x_right1,y_right1,x_right2,y_right2 = x_right - x_width, y_right - y_height,x_right + x_width,y_right + y_height
+                        else:
+                            x1, y1, x2, y2 = x0 + x_width, y0 - y_height, x0 - x_width, y0 + y_height
+                            # x_right1,y_right1,x_right2,y_right2 = x_right + x_width, y_right - y_height,x_right - x_width,y_right + y_height
+
+                        # (x0, y0) i.e. the point through which the line must pass if the interval is to be used to calculate the width
+                        self.coordinate_axis.append(x0)
+                        self.coordinate_axis.append(y0)
+                        # The position of the fault line after 100 meters of movement along the fault line
+                        dist = 0
+                        allWidth_move = sqrt((1 + tan_faultAngle ** 2) * width ** 2)
+                        while dist < allWidth_move:
+                            move_dist = min(allWidth_move - dist, interval)
+                            move_width = sqrt(move_dist ** 2 * 1.0 / (tan_faultAngle ** 2 + 1))
+                            move_height = sqrt(move_dist ** 2 * 1.0 / ((1 / tan_faultAngle) ** 2 + 1))
+                            if tan_faultAngle > 0:
+                                x0, y0, x1, y1, x2, y2 = x0 + move_width, y0 + move_height, x1 + move_width, y1 + move_height, x2 + move_width, y2 + move_height
+                            else:
+                                x0, y0, x1, y1, x2, y2 = x0 + move_width, y0 - move_height, x1 + move_width, y1 - move_height, x2 + move_width, y2 - move_height
+                            if move_dist == interval and x0 != x_right:
+                                self.coordinate_axis.append(x0)
+                                self.coordinate_axis.append(y0)
+                            dist += interval
+                        # self.canvas.create_line(self.coordinate_axis, fill='black', tags=('base',))
+
+                    convexPts_count = len(self.new_convex)  # the numbers of points in new convex
+                    k0 = tan_theta  # Obtain the slope value of the line perpendicular to the direction of the fault
+                    dir_vector = array(
+                        [1, k0])  # Obtain the direction vector of a line perpendicular to the direction of the fault
+                    for j in range(2, len(self.coordinate_axis), 2):
+                        coors_cal = []
+                        x, y = self.coordinate_axis[j], self.coordinate_axis[
+                            j + 1]  # Take the point through which the line of this distance interval passes
+                        c = array([x, y])
+                        b0 = y - k0 * x  # Calculate the intercept
+                        for i in range(0, convexPts_count, 2):
+                            if i < (convexPts_count - 2):
+                                a = array([self.new_convex[i], self.new_convex[i + 1]])
+                                b = array([self.new_convex[i + 2], self.new_convex[i + 3]])
+                                if cross(a - c, dir_vector) * cross(b - c, dir_vector) <= 0:
+                                    if self.new_convex[i] > self.new_convex[i + 2]:
+                                        x2 = self.new_convex[i]
+                                        y2 = self.new_convex[i + 1]
+                                        x1 = self.new_convex[i + 2]
+                                        y1 = self.new_convex[i + 3]
+                                    else:
+                                        x1 = self.new_convex[i]
+                                        y1 = self.new_convex[i + 1]
+                                        x2 = self.new_convex[i + 2]
+                                        y2 = self.new_convex[i + 3]
+
+                                    if x2 == x1:
+                                        k1 = None
+                                        b1 = 0
+                                        x_cal = x1
+                                        y_cal = k0 * x_cal + b0
+                                    else:
+                                        k1 = (y2 - y1) * 1.0 / (x2 - x1)
+                                        b1 = y1 - k1 * x1
+                                        x_cal = (b0 - b1) * 1.0 / (k1 - k0)
+                                        y_cal = k0 * x_cal + b0
+                                    coors_cal.append([x_cal, y_cal])
+                        if coors_cal:
+                            self.canvas.create_line(
+                                [coors_cal[0][0], coors_cal[0][1], coors_cal[1][0], coors_cal[1][1]], fill='blue',
+                                tags=('w_l',), dash=(3, 1))
+                            distance = sqrt((coors_cal[0][0] - coors_cal[1][0]) ** 2 + (
+                                    coors_cal[0][1] - coors_cal[1][1]) ** 2) / self.scale
+                            self.index_mixture.append([j, distance])
+                            self.width_position.append((coors_cal[0][0] + coors_cal[1][0]) / 2)
+                            self.width_position.append((coors_cal[0][1] + coors_cal[1][1]) / 2)
+                            intersection.append(coors_cal[0])
+                            intersection.append(coors_cal[1])
+
+                    if tan_faultAngle is None:
+                        x_list = [a[0] for a in intersection]
+
+                        arrow_pos = intersection[x_list.index(max(x_list))]
+                        arrow_pos[0] = arrow_pos[1] + 100
+                        y = arrow_pos[1] - 100
+                        x = arrow_pos[0]
+                    else:
+                        y_list = [a[1] for a in intersection]
+
+                        arrow_pos = intersection[y_list.index(max(y_list))]
+                        arrow_pos[1] = arrow_pos[1] + 100
+
+                        if tan_faultAngle >= 0:
+                            x = arrow_pos[0] - 100
+                            y = tan_faultAngle * (-100) + arrow_pos[1]
+                        else:
+                            x = arrow_pos[0] + 100
+                            y = tan_faultAngle * 100 + arrow_pos[1]
+
+                    self.canvas.create_line([x, y, arrow_pos[0], arrow_pos[1]], fill='red', tags=('arrow',),
+                                            arrow='last', arrowshape=(30, 30, 5))
+
+                    # Labeled coordinate axes
+                    if self.index_mixture:
+                        for index_dist in self.index_mixture:
+                            self.canvas.create_text(self.width_position[index_dist[0]],
+                                                    self.width_position[index_dist[0] + 1], text=(str(
+                                    round(index_dist[1], 1)) + ' m'), font=('Times', int(self.textsize)),
+                                                    tags=('width',), fill='black')
+
+                        list_interval = [i * float(self.e_interval.get()) for i in
+                                         range(1, len(self.index_mixture) + 1)]
+                        data = array(sorted(self.index_mixture, key=(lambda x: x[0])))[:, 1]
+                        fig = figure()
+                        # bar diagram
+                        ax2 = fig.add_subplot(121)
+                        ax2.bar(list_interval, data, color='lightblue', tick_label=list_interval)
+
+                        # list_interval1 = list_interval[1:]
+                        xnew = linspace(int(min(list_interval)), int(max(list_interval)),
+                                        (int(max(list_interval)) - int(min(list_interval))) * 2)
+                        # interpolation
+                        spl = make_interp_spline(list_interval, data, k=3)
+                        smooth = spl(xnew)
+                        # plotting
+                        ax2.plot(xnew, smooth)
+                        ax2.set_ylabel("Width/m")
+                        ax2.set_xlabel("Distance/m")
+                        ax2.set_title("Width of surface rupture zone", fontsize=15)
+
+                        # rose diagram
+                        ax = fig.add_subplot(122, projection='polar')
+                        subplots_adjust(bottom=0.1)
+                        minVal = min(self.length)
+                        maxVal = max(self.length)
+                        axcolor = 'lightgoldenrodyellow'
+                        axleng = axes([0.2, 0.017, 0.6, 0.03], facecolor=axcolor)
+                        slength = matSlider(axleng, 'length', minVal, maxVal, valinit=minVal, valfmt='%.5f',
+                                            valstep=0.01,
+                                            color='lightgray')
+
+                        def update(val):
+                            anglelist = []
+                            thresLength = slength.val
+                            for length, new_angle in zip(self.length, self.angle):
+                                if length >= thresLength:
+                                    anglelist.append(new_angle)
+                            ax.clear()
+                            angle = [angle - faultAngle if angle >= faultAngle else 180 + angle - faultAngle for angle
+                                     in
+                                     anglelist]
+
+                            bins = arange(-5, 186, 10)
+                            numbers_of_angles, bins = histogram(angle, bins)
+                            numbers_of_angles[0] += numbers_of_angles[-1]
+                            numbers_of_angles = concatenate([numbers_of_angles[:-1], numbers_of_angles[:-1]])
+                            ax.bar(deg2rad(arange(0, 360, 10)), numbers_of_angles, width=deg2rad(10), bottom=0.0,
+                                   color='0.8', edgecolor='k')
+                            ax.set_theta_zero_location('E')
+
+                            # By default,angles are marked counterclockwise.
+                            # If this parameter is set to -1, angles are marked clockwise
+                            # ax.set_theta_direction(-1)
+
+                            ax.set_thetagrids(arange(0, 360, 10), labels=arange(0, 360, 10))
+                            ax.set_rgrids(arange(0, numbers_of_angles.max() + 1, 10), angle=0, weight='black')
+                            ax.set_title('Rose diagram of angles between surface ruptures and fault trace', fontsize=15)
+                            fig.canvas.draw_idle()
+
+                        slength.on_changed(update)
+                        slength.reset()
+                        slength.set_val(minVal)
+
+                        mng = get_current_fig_manager()
+                        mng.window.state("zoomed")
+                        self.text.set("The bar chart and angle rose diagram have been created successfully!")
+                        self.create = True
+                        show()
+                else:
+                    self.text.set("Please select the fault trace correctly!")
         else:
             self.text.set("Please enter the partition interval of surface rupture zone correctly!")
 
@@ -704,12 +1009,19 @@ class Rupture(ttk.Frame):
         self.canvas.lower('text')
         try:
             self.canvas.delete('distance')
-            self.coordinate_axis = self.canvas.coords('w')
+            # self.coordinate_axis = self.canvas.coords('w')
+            self.width_position = [0, 0]
+            self.width_line = self.canvas.coords('w_l')
+
+            for i in range(0, len(self.width_line), 2):
+                self.width_position.append((self.width_line[i][0] + self.width_line[i + 1][0]) / 2)
+                self.width_position.append((self.width_line[i][1] + self.width_line[i + 1][1]) / 2)
+
             if self.index_mixture:
                 # Labeled coordinate axes
                 for index_dist in self.index_mixture:
-                    self.canvas.create_text(self.coordinate_axis[index_dist[0]],
-                                            self.coordinate_axis[index_dist[0] + 1], text=(str(
+                    self.canvas.create_text(self.width_position[index_dist[0]],
+                                            self.width_position[index_dist[0] + 1], text=(str(
                             round(index_dist[1], 1)) + ' m'), font=('Times', int(self.textsize)), tags=('distance',),
                                             fill='black')
         except:
@@ -721,21 +1033,24 @@ class Rupture(ttk.Frame):
 if __name__ == "__main__":
     switch_backend('TkAgg')
     path = None
+    fault = None
     root = Tk()
     app = InputImage(root)
     root.mainloop()
-    if path == None:
+
+    if path:
+        fault_trace = fault
+        path_shp = path
+        mainWindow = Tk()
+        mainWindow.state('zoomed')
+        mainWindow.title('WidthAndStrike')
+        frame = Rupture(mainWindow, path_shp, fault_trace)
+        mainWindow.columnconfigure(0, weight=1)
+        mainWindow.rowconfigure(0, weight=1)
+        mainWindow.mainloop()
+    else:
         root = Tk()
         root.withdraw()
         messagebox.showerror("Error", "Please input the path of vector file correctly!")
         root.destroy()
         root.mainloop()
-    else:
-        path_shp = path
-        mainWindow = Tk()
-        mainWindow.state('zoomed')
-        mainWindow.title('widthAndstrike')
-        frame = Rupture(mainWindow, path_shp)
-        mainWindow.columnconfigure(0, weight=1)
-        mainWindow.rowconfigure(0, weight=1)
-        mainWindow.mainloop()
