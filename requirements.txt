@@ -1,7 +1,7 @@
-GDAL==3.4.1
+GDAL==3.4.3
 matplotlib==3.2.2
-numpy==1.21.5
-osgeo==0.0.1
-Pillow==9.2.0
+numpy==1.22.0
+Pillow==9.0.1
 rasterio==1.2.10
 scipy==1.7.3
+opencv-python==4.5.5

@@ -67,7 +67,7 @@ class MainEntrance:
         def raster2vector():
             mainDir = r".\Lib\raster2vector.py"
             if os.path.exists(mainDir):
-                run(['python', mainDir], shell=True)
+                run(['python', mainDir], shell=False)
 
         # Create a thread to execute the programs
         t = Thread(target=raster2vector)
@@ -81,7 +81,7 @@ class MainEntrance:
         def vector2raster():
             mainDir = r".\Lib\vector2raster.py"
             if os.path.exists(mainDir):
-                run(['python', mainDir], shell=True)
+                run(['python', mainDir], shell=False)
 
         # Create a thread to execute the programs
         t = Thread(target=vector2raster)
@@ -95,7 +95,7 @@ class MainEntrance:
         def lingRing2surface():
             mainDir = r".\Lib\lineRing2surface.py"
             if os.path.exists(mainDir):
-                run(['python', mainDir], shell=True)
+                run(['python', mainDir], shell=False)
 
         # Create a thread to execute the programs
         t = Thread(target=lingRing2surface)
@@ -109,7 +109,7 @@ class MainEntrance:
         def surface2lineRing():
             mainDir = r".\Lib\surface2lineRing.py"
             if os.path.exists(mainDir):
-                run(['python', mainDir], shell=True)
+                run(['python', mainDir], shell=False)
 
         # Create a thread to execute the programs
         t = Thread(target=surface2lineRing)
@@ -123,7 +123,7 @@ class MainEntrance:
         def mergeVector():
             mainDir = r".\Lib\Merge.py"
             if os.path.exists(mainDir):
-                run(['python', mainDir], shell=True)
+                run(['python', mainDir], shell=False)
 
         # Create a thread to execute the programs
         t = Thread(target=mergeVector)
@@ -137,7 +137,7 @@ class MainEntrance:
         def cropImage():
             mainDir = r".\Lib\SlidingCrop.py"
             if os.path.exists(mainDir):
-                run(['python', mainDir], shell=True)
+                run(['python', mainDir], shell=False)
 
         # Create a thread to execute the programs
         t = Thread(target=cropImage)
@@ -151,7 +151,7 @@ class MainEntrance:
         def mosaicImage():
             mainDir = r".\Lib\Mosaic.py"
             if os.path.exists(mainDir):
-                run(['python', mainDir], shell=True)
+                run(['python', mainDir], shell=False)
 
         # Create a thread to execute the programs
         t = Thread(target=mosaicImage)
@@ -188,7 +188,7 @@ class MainEntrance:
         def custom():
             mainDir = r".\Lib\CustomCrop.py"
             if os.path.exists(mainDir):
-                run(['python', mainDir], shell=True)
+                run(['python', mainDir], shell=False)
 
         # Create a thread to execute the programs
         t = Thread(target=custom)
@@ -202,7 +202,7 @@ class MainEntrance:
         def roughSeg():
             mainDir = r".\Lib\RoughSeg_FineExt.py"
             if os.path.exists(mainDir):
-                run(['python', mainDir], shell=True)
+                run(['python', mainDir], shell=False)
 
         t = Thread(target=roughSeg)
         # t = multiprocessing.Process(target = func, args = args)
@@ -215,7 +215,7 @@ class MainEntrance:
         def edit():
             mainDir = r".\Lib\EditVector.py"
             if os.path.exists(mainDir):
-                run(['python', mainDir], shell=True)
+                run(['python', mainDir], shell=False)
 
         t = Thread(target=edit)
         # t = multiprocessing.Process(target = func, args = args)
@@ -228,7 +228,7 @@ class MainEntrance:
         def widthStrike():
             mainDir = r".\Lib\WidthAndStrike.py"
             if os.path.exists(mainDir):
-                run(['python', mainDir], shell=True)
+                run(['python', mainDir], shell=False)
 
         t = Thread(target=widthStrike)
         # guard the thread
