@@ -13,6 +13,9 @@ Please cite this article as:
 
 *Li, D., and J. Ren (2023). EASRAPP: An Open-Source Semiautomatic Python GUI-Based Application for Extraction and Analysis of Surface Ruptures in a Large Earthquake,*  *Seismol. Res. Lett. XX, 1–16, doi: 10.1785/0220220313.*
 
+## Cooperation: Develop together, Progress together  
+- I also encourage the user to work together to develop new functionalities and share these developments with the geoscientific community under the GNU General Public  License v3.0 to create an open-source software for the extraction and analysis of some terrain features. My code is developed using Python, I have also tried to package it as a lightweight exe for users to download and use without having to install their own packages, but due to Python's own reasons and my ability to limit, the packaging results are so large that it is not easy for everyone to download and use. If any of you are able to package a lightweight exe, please work with me to improve EASRAPP. For ideas, suggestions or code improvements, please contact my email at lidongchen20@mails.ucas.ac.cn.
+
 ## Run the Software
 Python and the Python packages requested in the file 'requirement.txt' need to be installed. Please refer to the user manual for specific usage.
 
