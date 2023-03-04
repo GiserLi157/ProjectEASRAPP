@@ -1,9 +1,17 @@
-# EASRAPP
+# Welcome to EASRAPP (An Open-Source Semi-Automatic Python GUI-Based Application for Extraction and Analysis of Surface Ruptures in a large earthquake)  
+
 - EASRAPP, written in Python, is a free, open-source system with simplified interactive interfaces tailed to the rapid extraction and analysis of surface ruptures. 
 - It facilitates the user to obtain the region of interest quickly using a custom cropping routine to crop the raw image; allows the user to reference the raw image to extract surface ruptures semi-automatically; supports manual adjustment of extraction results if required; helps to extract lengths, widths, and strikes of all surface ruptures; provides the user with some processing tools for vector and raster; also offers the necessary prompts or error messages to the user during the runtime; and uses a new algorithm to extract the widths of the surface rupture zone at optional distance intervals, while generating a bar graph of the surface rupture widths with a fitted curve and a rose diagram of angles between surface ruptures and fault trace.
 - This application is easily applied and has the functions to zoom in, zoom out and move for helping to extract surface ruptures in larger images (e.g., 5000 X 5000 pixels in dimension).
 - It will provide a convenient tool for the rapid extraction of coseismic surface ruptures, and will help understand detailed information about the seismogenic fault of a large earthquake.
 - the part modules of EASRAPP(e.g., the RoughSeg_FineExt, EditVector and WidthAndStrike modules) require the input image to be a three-channel optical image with the projection coordinate system, a pixel type of ‘unsigned integer’ and a pixel depth of ‘8 Bit’ (i.e., "0-255" for the pixel value extent of each channel). 
+
+## Citation
+Ariticle Here: **Proofed, pending publication (to be updated)**
+
+Please cite this article as:  
+
+*Li, D., and J. Ren (2023). EASRAPP: An Open-Source Semiautomatic Python GUI-Based Application for Extraction and Analysis of Surface Ruptures in a Large Earthquake,*  *Seismol. Res. Lett. XX, 1–16, doi: 10.1785/0220220313.*
 
 ## Run the Software
 Python and the Python packages requested in the file 'requirement.txt' need to be installed. Please refer to the user manual for specific usage.
@@ -64,6 +72,3 @@ Python and the Python packages requested in the file 'requirement.txt' need to b
 ## Test Data
 
 We have categorized the test data (names are consistent with the description in the user manual) according to each module and tool. In addition, the test data for both the **‘CustomCrop’** module and the **‘SlidingCrop’** tool is the image named '0525-0.01mDOM.tif '  (see the folder named **'CustomCrop&SlidingCrop'** under the **‘test_data’** zip). Also, the test data of the **'Mosaic'** tool is the cropping result of the **‘SlidingCrop’** tool.
-
-## Citation
-- To be updated.
