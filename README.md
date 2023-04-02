@@ -1,5 +1,5 @@
 # Attention please
-Test data that are larger than 100M is difficult to be uploaded on GitHub.   However, the test data could be downloaded at https://drive.google.com/drive/folders/1Q00JZYo-gopVuN2g-epeXTxP0y_tYwrT?usp=sharing.
+- Test data that are larger than 100M are difficult to be uploaded on GitHub.   However, the test data could be downloaded at https://drive.google.com/drive/folders/1Q00JZYo-gopVuN2g-epeXTxP0y_tYwrT?usp=sharing.
 
 # Welcome to EASRAPP (An Open-Source Semi-Automatic Python GUI-Based Application for Extraction and Analysis of Surface Ruptures in a large earthquake)  
 
