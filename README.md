@@ -75,6 +75,9 @@ Python and the Python packages requested in the file 'requirement.txt' need to b
   - The **slidingCrop** tool allows the user to batch crop multiple large images to many small images with a sliding window of selectable size. The user can also select whether to create a sample dataset for machine learning or deep learning.
   - The **Mosaic** tool is dedicated to mosaicing several remote sensing images into a large image.
 
+## Test Data
+- We have categorized the test data (names are consistent with the description in the user manual) according to each module and tool. In addition, the test data for both the **‘CustomCrop’** module and the **‘SlidingCrop’** tool is the image named '0525-0.01mDOM.tif '  (see the folder named **'CustomCrop&SlidingCrop'** under the **‘test_data’** zip). Also, the test data of the **'Mosaic'** tool is the cropping result of the **‘SlidingCrop’** tool.
+
 # Extraction effect and partial functions demonstration
 - # Comparison of the extraction result with the result of visual interpretation
   - a drone image with a resolution of about 2 cm derived from the 2021 Maduo Ms7.4 earthquake in Qinghai Province was tested.
@@ -96,6 +99,3 @@ Python and the Python packages requested in the file 'requirement.txt' need to b
   - Notes: Figure 5. (a) The bar graph of the width of the surface rupture zone; (b) the rose map of angles; (c) the slider used to interactively adjust the equivalent length threshold; (d) the schematic diagram of widths of the surface rupture, where the red arrow indicates the dominant direction of the fault.
   - ![Figure 5](https://github.com/GiserLi157/ProjectEASRAPP/assets/84237176/abee5dfb-6750-4511-8401-c02f367c1afb)
 
-## Test Data
-
-We have categorized the test data (names are consistent with the description in the user manual) according to each module and tool. In addition, the test data for both the **‘CustomCrop’** module and the **‘SlidingCrop’** tool is the image named '0525-0.01mDOM.tif '  (see the folder named **'CustomCrop&SlidingCrop'** under the **‘test_data’** zip). Also, the test data of the **'Mosaic'** tool is the cropping result of the **‘SlidingCrop’** tool.
