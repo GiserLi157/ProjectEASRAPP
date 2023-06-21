@@ -85,7 +85,7 @@ Python and the Python packages requested in the file 'requirement.txt' need to b
   - ![Figure 7](https://github.com/GiserLi157/ProjectEASRAPP/assets/84237176/67411fbb-b4dd-45a0-8a8a-b0e3f095a2b4)
  
 - # Extraction results of surface fractures based on small images
-  - From Figure 7, we find that the partially reconstructed surface ruptures are poorly extracted. To verify the reliability of the method and to visualize the usage of the technique, the poorly extracted parts (i.e., the bottom images in Fig. 2a and c) are cropped out from the large image for surface rupture extraction using local thresholding.
+  - From Figure 1, we find that the partially reconstructed surface ruptures are poorly extracted. To verify the reliability of the method and to visualize the usage of the technique, the poorly extracted parts (i.e., the bottom images in Fig. 2a and c) are cropped out from the large image for surface rupture extraction using local thresholding.
   - Notes: Figure 2. Extraction results of small images clipped from the large image, in which bottom images are the data used for the semi-automatic extraction algorithm; (a) and (c) the original extraction results of Figure 7e and Figure 7g; (b) and (d) Extraction results after image chunking. The green is the visual representation result of surface ruptures by Liu-Zeng et al. (2022).
   - ![Figure 8](https://github.com/GiserLi157/ProjectEASRAPP/assets/84237176/dbf02674-18ff-4628-b9e1-80f37165b1f5)
 
@@ -96,6 +96,6 @@ Python and the Python packages requested in the file 'requirement.txt' need to b
 
 - # Functions of WidthAndStrike module
   - EASRAPP includes a module to perform the extraction of the widths of the surface rupture zone at optional intervals and the generation of a rose diagram of angles between surface ruptures and the dominant direction of the fault.
-  - Notes: Figure 5. (a) The bar graph of the width of the surface rupture zone; (b) the rose map of angles; (c) the slider used to interactively adjust the equivalent length threshold; (d) the schematic diagram of widths of the surface rupture, where the red arrow indicates the dominant direction of the fault.
+  - Notes: Figure 4. (a) The bar graph of the width of the surface rupture zone; (b) the rose map of angles; (c) the slider used to interactively adjust the equivalent length threshold; (d) the schematic diagram of widths of the surface rupture, where the red arrow indicates the dominant direction of the fault.
   - ![Figure 5](https://github.com/GiserLi157/ProjectEASRAPP/assets/84237176/abee5dfb-6750-4511-8401-c02f367c1afb)
 
