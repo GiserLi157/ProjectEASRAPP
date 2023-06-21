@@ -75,7 +75,7 @@ Python and the Python packages requested in the file 'requirement.txt' need to b
   - The **slidingCrop** tool allows the user to batch crop multiple large images to many small images with a sliding window of selectable size. The user can also select whether to create a sample dataset for machine learning or deep learning.
   - The **Mosaic** tool is dedicated to mosaicing several remote sensing images into a large image.
 
-# Extraction effect and partial function demonstration
+# Extraction effect and partial functions demonstration
 - # Comparison of the extraction result with the result of visual interpretation
   - a drone image with a resolution of about 2 cm derived from the 2021 Maduo Ms7.4 earthquake in Qinghai Province was tested.
   - Notes: Figure 1. The comparison of extraction results and manual mapping results, in which the red is the contour of the extraction result and the bottom image is the raw image; (a) the extracted result; (b) the result of the visual interpretation in Liu-Zeng et al. (2022), in which the thick line in green is the primary rupture they drew, and the thin line is the secondary rupture; (c)-(e) the local comparison with main ruptures; (f)-(h) the local comparison with secondary ruptures. The geographical coordinates of the black star (the center of the map) in (a) and (b) are (35.8619N, 92.3879E). 
@@ -91,7 +91,7 @@ Python and the Python packages requested in the file 'requirement.txt' need to b
   - Notes: Figure 3. The extraction result of ruptures in the historical earthquake, in which the red line ring is the outline of the surface rupture. (a) Results of surface rupture extraction, with the original optical image in the bottom image; (b)-(d) Detail structures of surface rupture contours. The geographical coordinates of the black star in Figure 9a are (35.8619N, 92.3879E).
   - ![Figure 9](https://github.com/GiserLi157/ProjectEASRAPP/assets/84237176/29437d9c-67b4-45ec-94fd-cb4b95fae191)
 
-- # the functions of WidthAndStrike module
+- # Functions of WidthAndStrike module
   - EASRAPP includes a module to perform the extraction of the widths of the surface rupture zone at optional intervals and the generation of a rose diagram of angles between surface ruptures and the dominant direction of the fault.
   - Notes: Figure 5. (a) The bar graph of the width of the surface rupture zone; (b) the rose map of angles; (c) the slider used to interactively adjust the equivalent length threshold; (d) the schematic diagram of widths of the surface rupture, where the red arrow indicates the dominant direction of the fault.
   - ![Figure 5](https://github.com/GiserLi157/ProjectEASRAPP/assets/84237176/abee5dfb-6750-4511-8401-c02f367c1afb)
