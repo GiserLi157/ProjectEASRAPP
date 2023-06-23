@@ -1,5 +1,5 @@
 <a href="https://info.flagcounter.com/qu3g"><img src="https://s11.flagcounter.com/count2/qu3g/bg_FFFFFF/txt_000000/border_CCCCCC/columns_2/maxflags_10/viewers_0/labels_0/pageviews_0/flags_0/percent_0/" alt="Flag Counter" border="0"></a>
-[URL=https://info.flagcounter.com/qu3g][IMG]https://s11.flagcounter.com/count2/qu3g/bg_FFFFFF/txt_000000/border_CCCCCC/columns_2/maxflags_10/viewers_0/labels_0/pageviews_0/flags_0/percent_0/[/IMG][/URL]
+
 # Attention please
 - Test data that are larger than 100M are difficult to be uploaded on GitHub.   However, the test data could be downloaded at https://drive.google.com/drive/folders/1Q00JZYo-gopVuN2g-epeXTxP0y_tYwrT?usp=sharing.
     
