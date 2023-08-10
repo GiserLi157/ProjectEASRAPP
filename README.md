@@ -12,7 +12,8 @@
 - the part modules of EASRAPP(e.g., the RoughSeg_FineExt, EditVector and WidthAndStrike modules) require the input image to be a three-channel optical image with the projection coordinate system, a pixel type of ‘unsigned integer’ and a pixel depth of ‘8 Bit’ (i.e., "0-255" for the pixel value extent of each channel). 
 
 ## Citation
-*Article Here: https://pubs.geoscienceworld.org/ssa/srl/article-abstract/doi/10.1785/0220220313/620895/EASRAPP-An-Open-Source-Semiautomatic-Python-GUI
+# Article Here: 
+https://pubs.geoscienceworld.org/ssa/srl/article-abstract/doi/10.1785/0220220313/620895/EASRAPP-An-Open-Source-Semiautomatic-Python-GUI
 
 Please cite this article as: 
 
