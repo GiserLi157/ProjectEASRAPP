@@ -13,14 +13,13 @@
 
 ## Citation
 ### Article Here: 
-  https://pubs.geoscienceworld.org/ssa/srl/article-abstract/doi/10.1785/0220220313/620895/EASRAPP-An-Open-Source-Semiautomatic-Python-GUI
+* https://pubs.geoscienceworld.org/ssa/srl/article-abstract/doi/10.1785/0220220313/620895/EASRAPP-An-Open-Source-Semiautomatic-Python-GUI
 
 ### Please cite this article as: 
-* Li D, Ren J. EASRAPP: An Open‐Source Semiautomatic Python GUI‐Based Application for Extraction and Analysis of Surface Ruptures in a Large Earthquake [J]. **Seismological Research Letters, 2023, 94(4): 2014-2029. https://doi.org/10.1785/0220220313.
+* Li D, Ren J. EASRAPP: An Open‐Source Semiautomatic Python GUI‐Based Application for Extraction and Analysis of Surface Ruptures in a Large Earthquake [J]. Seismological Research Letters, 2023, 94(4): 2014-2029. https://doi.org/10.1785/0220220313.
 
-Latex editable (.bib format):
-
-**@article{Li2023EASRAPP,
+### Latex editable (.bib format):
+* @article{Li2023EASRAPP,
     **author = {Li, Dongchen and Ren, Junjie},
     **title = "{EASRAPP: An Open‐Source Semiautomatic Python GUI‐Based Application for Extraction and Analysis of Surface Ruptures in a Large Earthquake}",
     **journal = {Seismological Research Letters},
