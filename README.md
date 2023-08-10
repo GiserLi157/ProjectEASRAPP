@@ -1,9 +1,9 @@
 ![](https://komarev.com/ghpvc/?username=GISerLi)
 
-# Attention please
+## Attention please
 - Test data that are larger than 100M are difficult to be uploaded on GitHub.   However, the test data could be downloaded at https://drive.google.com/drive/folders/1Q00JZYo-gopVuN2g-epeXTxP0y_tYwrT?usp=sharing.
     
-# Welcome to EASRAPP (An Open-Source Semi-Automatic Python GUI-Based Application for Extraction and Analysis of Surface Ruptures in a large earthquake)  
+## Welcome to EASRAPP (An Open-Source Semi-Automatic Python GUI-Based Application for Extraction and Analysis of Surface Ruptures in a large earthquake)  
 
 - EASRAPP, written in Python, is a free, open-source system with simplified interactive interfaces tailed to the rapid extraction and analysis of surface ruptures. 
 - It facilitates the user to obtain the region of interest quickly using a custom cropping routine to crop the raw image; allows the user to reference the raw image to extract surface ruptures semi-automatically; supports manual adjustment of extraction results if required; helps to extract lengths, widths, and strikes of all surface ruptures; provides the user with some processing tools for vector and raster; also offers the necessary prompts or error messages to the user during the runtime; and uses a new algorithm to extract the widths of the surface rupture zone at optional distance intervals, while generating a bar graph of the surface rupture widths with a fitted curve and a rose diagram of angles between surface ruptures and fault trace.
